@@ -1,0 +1,73 @@
+\section{The Wireless Paradigm}\label{sec:wireless}
+The user interface of Somax, which was discussed briefly in \cite{borg_2019} and \cite{borg2020dynamic}, is implemented in the Max\cite{maxmsp2021} programming language. The user interface was originally designed as a thin client, where all of the computation is handled on the Python server (apart from the real-time signal processing required for audio signals used as influences). As most readers likely are aware of, Max is a visual programming language where the default means of programming is by connecting objects using patch cords. In most cases, the readability of a Max program is determined by how easy it is to follow the cords throughout the program. The Somax user interface was originally designed with this in mind to promote readability on both micro and macro levels of the program, but is from version 2.3 using wireless communication (\texttt{send} and \texttt{receive}) between objects on a macro level. While this approach to some extent obscures the readability (or at least the global signal flow) of the system, the benefits are manifold. First of all, the architecture becomes easier for the user to extend - adding new players can be done with a single keypress - and objects can dynamically select which other objects to interact with without having to modify the architecture. This new architecture and its implications will be presented in section \ref{ssec:max-architecture}.
+
+Another purpose of this redesign is to make the system integrable into Ableton Live. Somax can as a system be described as a «function» that reads one or multiple audio and/or MIDI streams and outputs one or multiple MIDI streams. For compatibility with Live, this has to be split into several smaller objects based on Live's syntax of «instruments» (function that reads one MIDI stream and outputs one audio stream), «audio effects» (function that reads one audio stream and outputs one audio stream) and «MIDI effects» (function that reads one MIDI stream and outputs one MIDI stream). Using a wireless architecture, this goal is possible to achieve for Somax. Do note that the wireless paradigm presented in this report is just a prerequisite for the Max for Live version of Somax; the latter it is still work in progress and will be presented in a future report.
+
+To accommodate these changes, the Python back-end has been updated to drastically increase the performance when using multiple players. This will be presented in section \ref{ssec:python-architecture}.
+
+\subsection{The Wireless Max Architecture}\label{ssec:max-architecture}
+The Max architecture currently consists of four main objects: \texttt{AudioInfluencer}, \texttt{MidiInfluencer}, \texttt{Player} and \texttt{Server}. The \texttt{AudioInfluencer} and \texttt{Midi\-Influencer} read a continuous stream of audio or MIDI data respectively and perform the slicing and trait analysis steps mentioned in section \ref{ssec:runtime-recap}. In the user interface, the data resulting from this process is called an \texttt{influence}, which is routed to a player (and the Python back-end) to compute the following steps in the influencing process. The \texttt{Player} object is essentially a client for the corresponding \texttt{Player} class in the Python back-end, which handles all of the runtime architecture described in section \ref{ssec:runtime-recap}. Finally, the \texttt{Server} object handles communication with the \texttt{Server} class in the Python back-end, which is the root of the entire system, handling all players as well as the transport (i.e. the master clock of the event scheduling). So far, this is identical to the architecture presented in \cite{borg_2019}, apart from the fact that that there is no routing object in the middle, which is now rather handled wirelessly and will be described further down in this section.
+
+ \begin{figure}[h!]
+    \centering        
+ 	\includegraphics[width=0.7\textwidth,keepaspectratio]{figures/ui-generic-chain.png}
+    \caption{Generalized interaction model of the Somax user interface.}
+    \label{fig:somax-interaction}
+\end{figure}
+
+
+Figure \ref{fig:somax-interaction} depicts the interaction model of the user interface on a large-scale level. Each input is sent into an influencer, which computes discrete influences from the data and forwards it to one or multiple players. An influencer may send influences to multiple players and a player may receive influences from multiple influences (hence, a many-to-many relationship). Each player generates an output MIDI stream based on said influences, which is also sent into an influencer to allow further influencing of other players with the generated output. 
+
+ \begin{figure}[h!]
+    \centering        
+ 	\includegraphics[width=0.99\textwidth,keepaspectratio]{figures/communication.png}
+    \caption{Interaction model for the wireless architecture. Dotted arrow lines denote some sort of "wireless" communication between objects while filled arrow lines denote their traditional UML relations (composition, generalization) and corresponding cardinality.}
+    \label{fig:somax-communication}
+\end{figure}
+
+A simplified diagram over the entire wireless system can be seen in figure \ref{fig:somax-communication}. Here we see that the only objects that do not have corresponding objects in the Python back-end are the influencers. Each influencer is given a name by the user, which the system ensures is unique, and this name will serve as the address on which the influencer sends its influences to players. 
+
+The \texttt{Player} object in Max was originally designed as a thin client around the \texttt{Player} class in the back-end, but has with this update been given two additional roles: routing and re-influencing. The routing module of the player (whose user interface is depicted in figure \ref{fig:routing-ui}) lists all available influencers and players and receives influences based on what the user selects. The player also contains a \texttt{PlayerInfluencer}, which is a simple variation on the \texttt{MidiInfluencer} that also accepts certain metadata from the back-end to optimize performance and reduce latency, and give the user more detailed control when routing influences between players.\footnote{More details on advanced routing with the \texttt{PlayerInfluencer} can be found in \cite{somaxoverview2021}.} When initialized, the \texttt{Player} is assigned a unique (user-controlled) name as well as two unique OSC ports - one for receiving one for sending messages to the corresponding \texttt{Player} class. An instantiation message is sent to the \texttt{Server} object, which creates and owns the \texttt{Player} in the back-end, but once communication is established, the \texttt{Player} object and \texttt{Player} class communicate influences, MIDI output and parameter changes directly over said OSC addresses. 
+
+ \begin{figure}[h!]
+    \centering        
+ 	\includegraphics[width=0.50\textwidth, keepaspectratio]{figures/routing-ui.png}
+    \caption{The routing module of each player. Here, all influencers and other players are listed, and the user can select whether to listen to pitch influences (P), onsets (O) and/or chroma influences (C) from that particular source. As chroma influences are continuous, it's also possible to mix chromas from different sources. The point of segmentation is determined by the chroma onset (CO).}
+    \label{fig:routing-ui}
+\end{figure}
+
+Finally, the \texttt{Server} object, which directly corresponds to the \texttt{Server} class (in Python) and the root of the entire system, is also initialized with unique receive and send OSC ports as well as a unique name. In addition, it also contains the beat tracker module \cite{bonnasse2010donner}, corpus builder (which is a simple user interface for the process of corpus building as described in section 2.2 of \cite{borg2020dynamic}), as well as a number of utilities for managing and recording the MIDI output. The role of the \texttt{Server} class will be described in detail in section \ref{ssec:python-architecture}.
+
+\subsubsection{Additional Updates to the User Interface}
+In addition to the changes related to the wireless architecture, the user interface of each individual component has been redesigned from  scratch. A Model-View-Controller design pattern has been applied to ensure that no inconsistencies exist between the Python back-end (model) and the Max user interface (view and controller). Each object has been remodelled so that multiple views/controllers may exist for the same data - one compact view, listing only the most vital parameters that are necessary to give the performer an overview while interacting with the system, and one full view where all parameters are available. This update also includes detailed (user-oriented) documentation of each object as well as a tutorial.
+
+
+\subsection{The Parallelized Python Architecture}\label{ssec:python-architecture}
+Due to the changes presented in the previous section, the architecture of the Python back-end, originally implemented in a concurrent (but single core) manner, had to be updated to a parallel multicore solution. As shown in section \ref{ssec:transforms-performance}, a generate-influence cycle for a single player can in some cases take 30 milliseconds or more. In the case of a single player, this means 30 milliseconds of latency for the player, which of course is not ideal, but it will not break the perception of pulse assuming that the latency stays fairly constant. This is however not the case for multiple players operating on a single core. E.g., if all three players receives their influence/onset messages simultaneously, the delay between sending the message and the output of the last player can be up to 90 milliseconds, while if influence/onset messages overlap perfectly, the delay for each player is only 30 milliseconds. This creates a latency interval for each player varying between 30-90 ms under even load (in this particular case, increasing linearly with each added player), effectively breaking all perception of pulse in the generated content.
+
+ \begin{figure}[h!]
+    \centering        
+ 	\includegraphics[width=0.80\textwidth, keepaspectratio]{figures/multicore-server.png}
+    \caption{Simplified class diagram over the new parallelized architecture.}
+    \label{fig:multicore-server-uml}
+\end{figure}
+
+In the new architecture, shown in figure \ref{fig:multicore-server-uml}, which combines the concurrent strategies of the previous implementation with parallelization, each \texttt{Player} runs in its own \texttt{Process} \cite{pymultiproc}, thereby not impacting each other performance-wise as long as there are fewer players running than free cores on the system. The \texttt{Server} is running two coroutines using the \texttt{asyncio} module \cite{pyasyncio}, where one coroutine continuously receives messages from the Max \texttt{Server} object over OSC and the other coroutine continuously updates the time of the \texttt{Transport} class and forwards this to each \texttt{Player}. Do note that there are two different \texttt{Transport}s available in figure \ref{fig:multicore-server-uml} - the \texttt{MasterTransport} and the \texttt{SlaveTransport}. In the former case, the time (measured in ticks $t \in \mathbb R_+$ as in previous sections) is updated with each callback so that at update $i = 0,1,\dots$,
+	\begin{align}
+		t_i = t_{i-1} + \Delta T \cdot \frac{\zeta_{i-1}}{60},
+	\end{align}
+	where $\Delta T \in \mathbb R_+$ denotes the time (in seconds) elapsed since the last callback and $\zeta_{i-1}$ denotes the tempo of the scheduler at the previous time step. In the case of the \texttt{SlaveScheduler}, the idea is that the time is updated from an external source, for example the master clock of Max or the current time from Ableton Live, i.e.
+		\begin{align}
+			t_i = t^{(\text{ext})}_i	.
+		\end{align}
+	These messages are sent over OSC through the \texttt{Server} object (in Max) and the second coroutine of the \texttt{Server} class is therefore unused in this case. The time $t_i$ is at each update $i$ sent to all \texttt{Player}s of the \texttt{Server} using a pipeline.
+	
+The \texttt{Player} class is also running two coroutines; one coroutine continuously receiving messages from the Max (parameter updates, influences and  onsets) and one coroutine continuously receiving message from the pipeline connected to the \texttt{Server}. As in the earlier architecture, these messages are queued through the \texttt{Scheduler}, which was described in section 3.4 of \cite{borg2020dynamic}, with the only exception that each \texttt{Player} now has its own \texttt{Scheduler}, instead of a shared one for all \texttt{Player}s. Also, if the user has set a specific \texttt{Player} as the «Tempo Master», i.e. the source from which the \texttt{Transport} should receive its tempo, this data is returned to the \texttt{Server} through another pipeline and updated accordingly, e.g. for a tempo $\zeta^{(\mathcal C)}_w$ returned by the \texttt{Player} after update $t_i$, the tempo of the \texttt{Transport} is updated so that
+	\begin{align}
+		\zeta_i = \zeta^{(\mathcal C)}_w.
+	\end{align}
+ 
+	
+
+
+

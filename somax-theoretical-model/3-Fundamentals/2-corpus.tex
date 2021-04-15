@@ -1,0 +1,72 @@
+\section{Corpus}\label{sec:3-corpus}
+ \begin{figure}[h!]
+    \centering        
+ 	\includegraphics[width=0.99\textwidth]{figures/3-somax-corpus.png}
+    \caption{The main steps in constructing and modelling a Corpus.}
+    \label{fig:3-somax-corpus}
+\end{figure}
+
+\noindent The corpus $\mathcal C$ is the basis of Somax from which all output material will be drawn. It is constructed from one or multiple audio and/or midi files, which are segmented into short slices $\mathcal{S}$, where each segment is analyzed with respect to a number of traits $\theta$, clustered and classified in multiple layers - each layer with respect to a single trait -  and finally modelled according to a specific data model. This procedure can be seen in figure \ref{fig:3-somax-corpus}, and each step will be described in detail in the following sections.
+
+\subsection{Slicing}\label{sec:3-corpus-slicing}
+
+ \begin{figure}[h!]
+    \centering        
+ 	\includegraphics[width=0.8\textwidth]{figures/3-slicing.png}
+    \caption{Example of slicing a short segment of a midi file, where the slices are represented by dashed vertical lines and notes represented by red horizontal bars.}
+    \label{fig:3-slicing}
+\end{figure}
+
+\noindent The first step in constructing and modelling the corpus is to parse the midi/audio files and segment the content into slices along the time axis. The start of each slice is for midi file determined by each midi notes onset (see figure \ref{fig:3-slicing} and for audio files determined by each beat, which is estimated by either the dynamic programming algorithm \cite{ellis_beat_2007} for audio files with a fixed tempo or using predominant local pulse estimation \cite{plp_2010} for audio files with a dynamic tempo.
+
+Each slice $\mathcal S^{(\mathcal C)}$ is assigned an index $u$, an onset time $t^{(\mathcal C)}$ (in ticks, where 1 tick correspond to one beat), a duration $d$ (in ticks), a tempo $\zeta$ (in BPM) determined either by the midi tempo at that specific point in time or estimated from the inter-onset interval between two beats for audio files. The slice is also assigned an absolute onset time $\tau_u$ and an absolute duration $\delta_u$, both in milliseconds, that will be relevant when determining the output position in audio files. Each slice is also analyzed with respect to a number of traits $\theta^{(q)}$, $q = 1,\dots,Q$ which will be described in section \ref{sec:3-corpus-traits}. More formally, we have a corpus of length $U$ defined as 
+\begin{align}
+	\mathcal C = \left\lbrace S_1^{(\mathcal C)}, S_2^{(\mathcal C)}, \dots, S_U^{(\mathcal C)} \right\rbrace
+ \end{align}
+ where \begin{align}\label{eq:3-slice-definition}
+ 	\mathcal S_u^{(\mathcal C)} = \left\lbrace t_u^{(\mathcal C)}, d_u, \zeta_u, \tau_u, \delta_u, \theta_u^{(1)},\dots\theta_u^{(Q)}\right\rbrace, \quad u \in [1, U].
+ \end{align}
+
+
+\subsection{Trait Analysis}\label{sec:3-corpus-traits}
+Note that all parameters in equation \ref{eq:3-slice-definition} apart from $\theta^{(1)}, \dots, \theta^{(Q)}$ are only related to timing, so the purpose of the traits $\theta$ is to store any other feature of the slice, for example pitch, velocity, harmonic content, etc. These traits will later be used for clustering, classification and modelling the corpus. Another purpose of modelling each slice in terms of traits is to make the model format-agnostic, i.e. independent of whether the corpus is based on midi or audio data. Formally, the procedure of calculating trait $\theta^{(q)}_u$ of slice $\mathcal S_u^{(\mathcal C)}$ can be described as 
+\begin{align}\label{eq:3-trait-analysis}
+	\theta^{(q)}_u = \Psi^{(q)} \left(\mathcal S_u^{(\mathcal C)}, \left[ \mathcal S^{(\mathcal C)}_{u-1},S^{(\mathcal C)}_{u-2},\dots\right]\right), \quad u = 1,\dots, U
+\end{align}
+where $\Psi^{(q)}$ denotes a function depending on $\mathcal S^{(\mathcal C)}_u$ (and optionally previous slices) for calculating trait $\theta^{(q)}_u$. Once the trait analysis is completed, the process of constructing (but not modelling) the corpus is completed. 
+
+\subsection{Clustering and Classification Modelling}\label{sec:3-corpus-clustering}
+The completed corpus $\mathcal C$  is modelled in $R$ layers, where each layer $r \in [1,R]$ has its own clustering $\Theta^{(r)}$ and model $\mathcal M^{(r)}$. The clustering in layer $r$ will be described as
+\begin{align}\label{eq:3-corpus-clustering}
+	\Theta^{(r)}\left(\theta^{(q)} \mid \mathcal C\right), \quad q \in [1, Q],
+\end{align}
+which in other words mean that each layer's clustering is constructed with regards to a single trait $\theta^{(q)}$ given a corpus $\mathcal C$. In practice, however, not all clusterings rely on $\mathcal C$ - there are both \textit{absolute} and \textit{relative} clusterings, which are described further in section \ref{sec:4-main-architecture-classifiers}. Once a clustering has been constructed in layer $r$, each slice $\mathcal S^{(\mathcal C)}_u$, $u= 1,\dots,U$ in the corpus will be classified with respect to its corresponding parameter $\theta^{(q)}_u$, i.e.
+\begin{align}\label{eq:3-classification}
+	l_u^{(r)} = \Theta^{(r)}	\left(\theta^{(q)}_u \mid \mathcal C\right), \quad u=1,\dots, U
+\end{align}
+where $l_u^{(r)} \in \mathbb Z$ denotes the label of slice $\mathcal S^{(\mathcal C)}_u$ in layer $r$ with respect to trait $\theta^{(q)}$.
+
+Finally, a model $\mathcal M^{(r)}$ is constructed from the collected labels, i.e.
+\begin{align}
+	\mathcal M^{(r)}\left(\bm{l} \mid \bm{l}_{\mathcal C} \right), \quad \bm{l}_{\mathcal C} = \begin{bmatrix} l^{(r)}_1 & \dots & l^{(r)}_U \end{bmatrix}^T.
+\end{align}
+where $\mathcal M$ can be described as a mapping from a vector of labels $\bm{l}$ to a set of slices, i.e.
+\begin{align}\label{eq:3-model-function-definition}
+	\mathcal M\colon 	\bm{l}  \rightarrow \left\lbrace \mathcal S^{(\mathcal C)}_{u_1}, \dots, S^{(\mathcal C)}_{u_j}\right\rbrace, \quad u_1,\dots,u_j \in [1,U].
+\end{align}
+
+$\mathcal M$ can be described as a simplified, unweighted n-gram model which simply returns all slices that matches the given input. The process of constructing $\mathcal M$ is described in algorithm \ref{eq:3-ngram-modelling}, where $\gamma$ denotes the n-gram order, $\kappa$ denotes the given input at each time step and $\mathcal M$ here is modelled as a map where $\mathcal M\left[\kappa\right]$ denotes the values at the map's index $\kappa$.
+
+\begin{algorithm}
+\caption{Constructing $\mathcal M$}
+\begin{algorithmic}\label{eq:3-ngram-modelling}
+	\FOR{$u = \gamma$ to $U$} 
+		\STATE{$\kappa = [l_{u-\gamma}, \dots, l_{u}]$}
+		\IF{$\mathcal{M}[\kappa]$ exists}
+			\STATE{$\mathcal{M}[\kappa] := \mathcal{M}[\kappa] \cup \left\lbrace\mathcal{S}^{(\mathcal C)}_u\right\rbrace$} 
+		\ELSE
+			\STATE{$\mathcal{M}[\kappa] := \left\lbrace\mathcal{S}^{(\mathcal C)}_u\right\rbrace$}
+		\ENDIF
+	\ENDFOR
+\end{algorithmic}
+\end{algorithm}

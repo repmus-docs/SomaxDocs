@@ -1,0 +1,130 @@
+\section{Transforms}\label{sec:5-transforms}
+A fundamental problem with the model used in Somax is the fact that the quality of the output heavily relies on how well the influence (input) matches the corpus. This lies in the nature of its corpus-based approach - if the n-gram model is unable to find any slices matching a given series of influence labels, the output cannot be generated in relation to the given input. For example, if a corpus is using only the pitches of the D major scale while the influence is strictly limited to the pitches of the Db major scale, finding harmonic or melodic matches between the two will be impossible as they have no tones in common. What they do have in common is however intervallic relationships between the pitches, and if we could use this in the matching algorithm, the number of matches would increase without reducing the quality of the individual matches. For this purpose, the concept of transforms was introduced.
+
+\subsection{Definition}
+A transform $\mathcal T$ is a set of functions $\Lambda \colon \mathbb V \rightarrow \mathbb V$ for an arbitrary domain $\mathbb V$ that fulfil a number of conditions. More specifically, $\mathcal T =  \left\lbrace \Lambda_{\mathcal S},  \Lambda_{\theta1},\dots, \Lambda_{\theta q}  \right\rbrace$ where 
+	\begin{enumerate}
+		\item[(i)] $\Lambda_{\mathcal S}$ is defined for any slice $\mathcal S^{\mathcal C}_u$, $u =  1,\dots U$ given a corpus $\mathcal C$ of length $U$ so that the content of $\mathcal S^{(\mathcal T)}_u = \Lambda_{\mathcal S}\left(\mathcal S^{(\mathcal C)}_u\right)$  is defined and can be played in real-time,
+		\item[(ii)] Each function $\Lambda_{\theta q}$, $q = 1,\dots,Q$ is defined for one trait $\theta^{(q)}$,
+		\item[(iii)] Each function $\Lambda_{\mathbf v}$ has an inverse $\Lambda_{\mathbf v}^{-1}$ defined so that for any arbitrary element $\mathbf v \in \mathbb V$, \begin{align}
+			 \Lambda^{-1}_{\mathbf v}\left(\Lambda_{\mathbf v}\left(\mathbf v\right)\right) 
+			 = \Lambda_{\mathbf v}\left(\Lambda^{-1}_{\mathbf v}\left(\mathbf v\right)\right) 
+			 =\mathbf v.
+ 		\end{align}
+	\end{enumerate}
+
+\noindent Given a transform $\mathcal T$ fulfilling property (i) and (ii), we can transform each slice $\mathcal S^{(\mathcal C)}_u$ in the corpus and given a sequence of influences look for matches in both the original sequence $\left\lbrace \theta^{(q}_1, \dots, \theta^{(q)}_U\right\rbrace$ as well as the transformed sequence $\left\lbrace \Lambda_{\theta q} \left(\theta^{(q)}_1 \right), \dots, \Lambda_{\theta q} \left(\theta^{(q)}_U \right)\right\rbrace$ as of property (ii), while ensuring that a slice $\mathcal S^{(\mathcal T)}_u$ can be output (as of property (i)) and matches the influence. 
+	The third property exists for performance reasons and will be discussed in the following sections.
+
+\subsection{Transposition}\label{ssec:transposition}
+Given the importance of the pitch domain in the Somax architecture, either in terms of melodic content (Top Note Classifier, Pitch Class Classifier; see \cite{somaxsoftware2021} for implementation) or harmonic content (chroma; again see \cite{somaxsoftware2021}), the main transform described in this section is the Transposition transform. The intuition behind this transform is simple - given our previous example with a corpus in D and influence in Db, we simply transpose our corpus to Db. 
+
+More formally, we define a transposition $\mathcal T^{(n)}$ of $n \in [-5, 6]$\footnote{The domain $[-5,6]$ was chosen to allow transpositions to all 12 pitch classes while ensuring that the transposed content is as close to the original timbre of the input as possible.} semitones as the set \begin{align}
+		\mathcal T^{(n)} = \left\lbrace  
+			\Lambda_{\mathcal S}^{(n)}, \Lambda_{\theta Pt}^{(n)}, \Lambda_{\theta c}^{(n)}\right\rbrace
+ 	\end{align}
+ 	where
+ 	\begin{enumerate}
+ 		\item [(i)] The function $\Lambda^{(n)}_{\mathcal S}\left(\mathcal S^{(\mathcal C)}_u\right)$ is for MIDI\footnote{While audio corpora are not currently supported as of Somax version 2.3, the same behaviour could be implemented for audio corpora by pitch shifting the temporal interval of the original audio file by a value corresponding to the number of semitones $n$. }  corpora defined as the set of notes $\mathcal N^{(\mathcal Tn)}_u = \left\lbrace m_1^{(\mathcal Tn)}, \dots , m_k^{(\mathcal Tn)}\right\rbrace$ (per definitions in section 3.4.2 of \cite{borg2020dynamic}) where $m_k^{(\mathcal Tn)}$ is the $k$:th note in $\mathcal N^{(\mathcal C)}_u$ with its pitch altered by $n$, i.e.
+ 			\begin{align}\label{eq:transp_slice}
+				m_k^{(\mathcal Tn)}\texttt{.pitch} = m_k\texttt{.pitch} + n, \quad \forall m_k \in \mathcal S^{(\mathcal C)}_u.
+			\end{align}
+		\item [(ii.1)] The function $\Lambda^{(n)}_{\theta Pt}$ given a pitch $\theta^{(Pt)} \in \mathbb Z_{[0, 127]}$ is defined as the pitch shifted by $n$, i.e.
+			\begin{align}\label{eq:transp_pitch}
+				\Lambda^{(n)}_{\theta Pt}\left(\theta^{(Pt)}\right) = \theta^{(Pt)} + n
+			\end{align}
+		\item [(ii.2)] The function $\Lambda^{(n)}_{\theta c}$ given a chroma vector $\bm{\theta}^{(c)} \in \mathbb R^{12}_{[0, \infty]}$ is defined as the chroma vector rotated by $n$, i.e.
+			\begin{align}\label{eq:transp_chroma}
+				\Lambda^{(n)}_{\theta c}\left(\theta^{(c)}\right) = \mathbf M^{(n)} \bm{\theta}^{(c)},
+			\end{align}
+			where the rotation matrix $\bm M^{(n)} \in \mathbb Z^{12\times 12}_{[0,1]}$ is given by
+			\begin{align}\label{eq:transp_rotmatrix}
+				\left(\mathbf M^{(n)}\right)_{i+1,j+1} 
+				= \left\lbrace \begin{array}{ll}
+ 					1 & \text{if } i = j + n \mod{12}\\
+ 					0 & \text{otherwise}
+ 				\end{array}\right., \quad i,j = 0,\dots,11.
+			\end{align}
+		\item [(iii)] Finally, the inverses are defined identically to equations \ref{eq:transp_slice}-\ref{eq:transp_rotmatrix} but with all $n$-terms substituted by $-n$.
+ 	\end{enumerate}
+\subsection{Procedure}
+The concept of transforms is by no means a novelty in Somax. In fact, it was already present in an early beta version of Somax 2 released back in 2018. The main problem of this version was however a huge decrease in performance, increasing the latency of the system by up to several hundreds of milliseconds (on a 2018 MacBook Pro 13" with a corpus of length $U < 10000$) when using multiple of transforms. This section will outline how the new implementation of transforms has altered the three main processes of the system: (1) constructing and modelling the corpus, (2) influencing and (3) generating output\footnote{For a thorough description of each of these sections, refer to chapter 2 in \cite{borg2020dynamic}.}, which will be evaluated in terms of performance in section \ref{ssec:transforms-performance}.
+
+For constructing and modelling the corpus, the implementation of transforms does in fact not introduce any changes. In section \ref{ssec:transposition}, the procedure was described as a transposition of the entire corpus, which would mean clustering, classification and constructing $N$ parallel models of the corpus given $N$ transforms. The problem with this approach is that it would increase load time significantly and modifying parameters of the clustering/classification or modelling modules would become too computationally heavy to handle at runtime. This approach would also lead to a significant increase in runtime computation time as the size of the corpus would effectively be $N$ times as large. Instead, we're utilizing property (iii) to inverse-transform the incoming influences $\theta^{(\mathcal K)}$ for each transform before classification, i.e. that for a transform $\mathcal T^{(n)}$ and a slice $\mathcal S^{(\mathcal C)}_u$ containing the trait $\theta^{(\mathcal S)}_u$ we're utilizing the fact that if \begin{align}
+		\Lambda^{(n)}_\theta\left(\theta^{(\mathcal S)}_u\right) = \theta^{(\mathcal K)}
+	\end{align} 
+	then	
+	\begin{align}
+		\left(\Lambda^{(n)}_\theta\right)^{-1}\left(\theta^{(\mathcal K)}\right) = \theta^{(\mathcal \mathcal S)}_u.
+	\end{align}
+
+\noindent Then for each inverse-transformed influence, we're computing the same steps as in section \ref{sec:3-influence} for each of the $n$ inverse-transformed influences, with the only new addition being that a peak $\bm p$ which previously was defined as \begin{align}
+		\bm p = \begin{bmatrix}
+			t^{(\mathcal C)} \\ y
+		\end{bmatrix}
+	\end{align}
+	now contains additional information about which transform was applied,\footnote{For practical reasons, this transform is denoted $\mathcal T$ here but in the actual implementation it is stored as an integer reference, which means that it indeed can be stored in a vector $\bm p \in \mathbb R^{3}$.} i.e.7
+	\begin{align}\label{eq:peak-transform}
+		\bm p = \begin{bmatrix}
+ 			t^{(\mathcal C)} \\ y \\ \mathcal T^{(n)}		
+	    \end{bmatrix}.
+	\end{align}
+
+Finally, for the process of merging peaks and generating output, the former process is identical to the description in section 2.4.2 in \cite{borg2020dynamic} except that the concatenated peak matrix $\bm P_w$ is split into $n$ matrixes -  one per transform - so that peaks corresponding to similar corpus time $t^{(\mathcal C)}$ but different transforms are not merged with each other. The latter process, the generation of output, contains an additional step, that of transforming the selected output slice $\mathcal S^{(\mathcal Y)}_w$ in accordance with its corresponding peak's applied transform, i.e. the final output slice $\mathcal S^{(\mathcal Tn)}_w$ is defined as
+	\begin{align}
+		\mathcal S^{(\mathcal Tn)}_w = \Lambda^{(n)}_{\mathcal S}\left(\mathcal S^{(\mathcal Y)}_w\right)
+	\end{align}
+	where $\Lambda^{(n)}_{\mathcal S}$ is the function corresponding to the transform of the selected peak $\bm {\hat p}_w$ in the case where such a peak exist. If no peak exists, the default output is the slice following the previously output slice with the same transform applied, i.e. given the previous output,
+		\begin{align}
+					\mathcal S^{(\mathcal Tn)}_{w-1} = \Lambda^{(n)}_{\mathcal S}\left(\mathcal S^{(\mathcal Y)}_{w-1}\right)			\quad \text{where} \quad \mathcal S^{(\mathcal Y)}_{w-1} = \mathcal S^{(\mathcal C)}_u
+		\end{align}
+		for some $u \in [1, U]$, we get
+		\begin{align}
+			\mathcal S^{(\mathcal Tn)}_w = \Lambda^{(n)}_\mathcal S \left(\mathcal S^{(\mathcal C)}_{u+1}\right).
+		\end{align}
+		
+\subsection{Runtime Performance}\label{ssec:transforms-performance}
+To evaluate the increase in computation time (i.e. runtime latency) caused by the addition of transforms, a sequence of integration tests were carried out. In these tests, the computational cost of the two main runtime processes, influence and generate, were evaluated separately on a corpus consisting of $U=7966$ slices under four different conditions: no additional transform applied (formally one transform of 0 semitones), three additional transforms applied, six additional transforms applied and 11 additional transforms applied. The same corpus was used both for the model and the influence, i.e. 
+	\begin{align}
+		\mathcal S^{(\mathcal C)}_u = \mathcal S^{(\mathcal K)}_w \quad w = u = 	1,\dots,U,
+	\end{align}
+	and iterated over linearly 10 times, in total yielding 79660 influence-generate steps, but at each step in the iteration, $p = 10^0, 10^1, \dots, 10^4$ additional peaks with random scores, times and transforms were inserted to evaluate how the system performs under different conditions. The entire process was evaluated on a MacBook Pro 13-inch 2018 with a 2.3 GHz Intel Core i5 processor running MacOS 10.15.
+
+	\begin{figure}[h!]
+    \centering        
+ 	\includegraphics[width=0.99\textwidth]{Figures/evaluation_performance.png}
+    \caption{Average computational cost with respect to number of transforms.}
+    \label{fig:transform-evaluation}
+	\end{figure}
+	
+	As depicted in figure \ref{fig:transform-evaluation}, the average computational cost increases linearly with the number of transforms and remains fairly constant independently of the number of added peaks.\footnote{The cost increases slightly with a large number of peaks, likely due to reallocation of memory being slightly more expensive in the final concatenation of peaks, but this cost does not have a significant impact on the overall result} For the generation process we also see a linear increase with the number of transforms, but the increase with relation to number of transforms is much less steep, while the computational cost is determined by the number of peaks to a much higher degree. In the third figure, we see the average cost of an entire influence-generation cycle, i.e. the time elapsed from when a performer presses a key to when the system responds. Without going too deep into psychoacoustics we can assume that most performers would consider a latency of 3.897 ms (0 additional transforms, $p = 1000$) as close to imperceivable, a latency of 9.911 ms (3 additional transforms, $p=1000$) most likely acceptable, but above that, we run into issues of perceivable latencies, for example with 6 additional transforms at $p=1000$  (14.16 ms), or even with 0 additional transforms at $p=10000$ (13.91 ms).
+	
+	The relation between computation time of the influence process and generate process are also important to take into account when further expanding the system. With the current relationship between estimated number of peaks and the number of classifiers, this implementation of transforms is ideal for runtime purposes, but should the system in the future move towards a higher degree of parallel classifiers, it's important to take this into account and possibly find other strategies for handling transforms in relation to classification.
+	
+	
+%	\begin{figure}
+%
+%	\begin{tabular}{|p{11.4cm}|}
+%		\hline
+%		$p = 1$
+%	\end{tabular}\\	
+%	\bgroup
+%	\def\arraystretch{1.5}	
+%	\begin{tabular}{|c||c|c|c||c|c|c|}
+%		\hline \hline		
+%		\# $\mathcal T$ & I (mean) & G (mean) & T (mean) & I (max) & G (max) & T (max)\\
+%		\hline
+%		0 & 1.561 & 1.167 & 2.728 & 8.09 & 11.80 & 18.57 \\
+%		3 & 5.521 & 2.801 & 8.322 & 81.57 & 73.70 & 85.67 \\
+%		6 &  &  &  &  &  &  \\
+%		11 &  &  &  &  &  &  \\
+%	\end{tabular}
+%
+%	\egroup	\end{figure}
+
+	
+
+
+
+% by default be generated from the slice following the previous output slice (see section 2.4.4 in \cite{borg2020dynamic} for details).
+

@@ -1,0 +1,77 @@
+\section{Influence}\label{sec:3-influence}
+ \begin{figure}[h!]
+    \centering        
+ 	\includegraphics[width=0.99\textwidth]{figures/3-somax-influence.png}
+    \caption{The main steps in parsing a continuous midi/audio stream and influencing somax.}
+    \label{fig:3-somax-influence}
+\end{figure}
+
+The influence process takes a continuous stream $\mathcal K$ of midi/audio data, segments it into slices, analyzes each slice with regards to its traits and determining where the corpus (or more specifically, at which temporal positions the models $\mathcal M$ constructed from the corpus) matches the incoming stream. These positions will later be used to determine the most suitable output. An overview of the influence process can be seen in figure \ref{fig:3-somax-influence}.
+
+One key aspect of Somax is that the influence process has a short-time memory, so that influences generated at previous time steps in the stream maintain an impact on the output for a certain amount of time. How this behaviour is simulated will be described in section \ref{sec:3-influence-peaks}.
+
+
+
+\subsection{Slicing}\label{sec:3-influence-slicing}
+The slicing procedure of the influence process is almost identical to the procedure described in section \ref{sec:3-corpus-slicing}, with the exception that it in the case of a real-time stream uses different algorithms for onset detection and beat estimation (see \cite{borg_2019} for details). More formally, we will define the continuous stream $\mathcal K$ with an (in most cases undefined) length $V$ as
+\begin{align}
+	\mathcal K 	= \left\lbrace \mathcal S_1^{(\mathcal K)}, \dots, \mathcal S_V^{(\mathcal K)} \right\rbrace
+\end{align}
+where
+\begin{align}\label{eq:3-stream-slice-definition}
+	\mathcal S_v^{(\mathcal K)} = \left\lbrace t_v^{(\mathcal K)}, d_v, \zeta_v, \theta_v^{(1)},\dots\theta_v^{(Q)}\right\rbrace, \quad v \in [1, V].
+\end{align}
+
+While the differences between equations \ref{eq:3-slice-definition} and \ref{eq:3-stream-slice-definition} seem to be that of replacing one index for another, there is one key difference that will be important in later sections: the difference between corpus time, $t^{(\mathcal C)}$, and continuous time $t^{(\mathcal K)}$. The corpus time $t^{(\mathcal C)}_u$, $u=1,\dots,U$ denotes the position of slice $\mathcal S_u^{(\mathcal C)}$ in the corpus which will always be fixed. The influence time $t^{(\mathcal K)}_v$ denotes the time of the current state $v$ in the process of generating and is closely related to scheduling, which is described in \cite{somaxsoftware2021}.
+
+
+\subsection{Trait Analysis, Classification and Matching to Model}\label{sec:3-influence-traits}
+Trait analysis and classification of a slice $\mathcal S_v^{(\mathcal K)}$ is identical to the procedure described in section \ref{sec:3-corpus}, more specifically to equation \ref{eq:3-trait-analysis} and \ref{eq:3-classification} respectively, with the only difference that it occurs in continuous time as soon as a slice $\mathcal S_v^{(\mathcal K)}$ has been segmented. 
+The system uses the $R$ layers that were used model the corpus, and in each layer the clustering created from the corpus is used for classification. In other words, at time step $t^{(\mathcal K)}_v$ corresponding to influence slice $\mathcal S_v^{(\mathcal K)}$ with traits $\theta_v^{(1)},\dots,\theta_v^{(Q)}$, we get one label $l_v^{(r)}$ per layer $r = 1,\dots, R$ so that 
+\begin{align}\label{eq:3-influence-classification}
+	l_v^{(r)} = \Theta^{(r)}\left(\theta^{(q)}_v \mid \mathcal C \right)
+\end{align}
+where $\theta^{(q)}_v$ denotes the single trait used in layer $r$ at the time step corresponding to index $v$.
+
+
+\subsection{Matching Slice to Model}\label{sec:3-influence-model}
+In each layer $r = 1,\dots R$, at time step $t^{(\mathcal K)}_v$ corresponding to influence slice $\mathcal S_v^{(\mathcal K)}$, a vector will be constructed from the previous  $k \in \mathbb Z_\ast$ labels, i.e.
+\begin{align}
+	\bm l_v^{(r)} = \begin{bmatrix} l_{v-k}^{(r)} & \dots & l_{v-1}^{(r)} & l_v^{(r)} \end{bmatrix},
+\end{align}
+and in accordance with the definition in equation \ref{eq:3-model-function-definition} generate a set of slices $\Sigma_v^{(r)} = \left\lbrace \mathcal S^{(\mathcal C)}_{u_1}, \dots, S^{(\mathcal C)}_{u_j}\right\rbrace, \quad u_1,\dots,u_j \in [1,U]$. From $\Sigma_v^{(r)}$, a matrix of peaks $\bm P_v^{(r)} \in \mathbb R^{2\times j}$ is constructed so that
+\begin{align}
+	\bm P_v^{(r)} = \begin{bmatrix} \bm p_{u_1} & \dots & \bm p_{u_j} \end{bmatrix}
+\end{align}
+where 
+\begin{align}
+	\bm p_{u_m} = \begin{bmatrix} t_{u_m}^{(\mathcal C)}  \\[0.17cm] y_{u_m} \end{bmatrix}, \qquad m = 1,\dots,j
+\end{align}
+where $y_{u_m}$ is a score (height) designated to each peak by the model and $t_{u_m}^{(\mathcal C)}$ is the temporal position of the corresponding slice's onset.
+
+
+\subsection{Peaks}\label{sec:3-influence-peaks}
+The final step in the influence process is to in each layer $r = 1,\dots R$ add the peaks $\bm P_v^{(r)}$ generated at time step $t^{(\mathcal K)}_v$ corresponding to index $v$ to the previous set of peaks $\bm P_{v-1}^{(r)}$ generated at the previous time step $t^{(\mathcal K)}_{v-1}$. The purpose of this behaviour is, as was described in section \ref{sec:3-influence}, to simulate a short-term memory, where previous influences maintain a degree of impact on the output. 
+
+To achieve this, the positions of the previous peaks are shifted (in \textit{corpus} time $t^{(\mathcal C)}$) corresponding to the influence time $t^{(\mathcal K)}$ elapsed since the previous influence, and the scores are decayed exponentially corresponding to the same interval scaled by a factor $\tau \in \mathbb R$, i.e.
+\begin{align}
+	\bm P_{v-1}^{(r)} := \begin{bmatrix} 
+							1 & 0 
+							\\ 0 & \text{exp}\left(\Delta t_v^{(\mathcal K)}/\tau\right)
+				         \end{bmatrix}	
+				         \bm P_{v-1}^{(r)}
+				         + \Delta t_v^{(\mathcal K)} \begin{bmatrix}
+				         		1 & 1 & \dots & 1\\				         
+				         		0 & 0 & \dots & 0
+				           \end{bmatrix}
+\end{align}
+where
+\begin{align}
+	\Delta t^{(\mathcal K)}_v = t^{(\mathcal K)}_v - t^{(\mathcal K)}_{v-1}.
+\end{align}
+Finally, the peak matrix $\bm P^{(r)}_v$ is updated by concatenating it with the shifted and decayed peaks from the previous time step, i.e.
+\begin{align}\label{eq:3-influence-concatenation}
+	\bm P^{(r)}_v := \begin{bmatrix} \bm P_{v-1}^{(r)} & \bm P_v^{(r)} \end{bmatrix}.
+\end{align}
+
+

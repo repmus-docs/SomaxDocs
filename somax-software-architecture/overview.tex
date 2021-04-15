@@ -1,0 +1,17 @@
+\section{Overview}\label{sec:1-overview}
+This report documents the underlying software architecture of the Somax environment. It is written with the intention to give a clear overview of the Somax architecture for anyone who in some way wishes to extend, contribute, maintain or in some other way modify the current architecture, as well for any reader who simply wishes to dissect parts of or the whole architecture to get a better understanding of its implemented solutions. It is recommended to read \cite{somaxtheory2021} before reading this report, in which the theoretical model of Somax is described, but it's possible to read them in any order, as there are plenty of cross-references to relevant sections in both of these reports. 
+
+Chapter \ref{sec:2-gentleintro} in this text summarizes the Somax model from a user perspective and is intended to give an overview of the system for anyone with limited practical experience of the Somax system. Chapter \ref{ch:implementation} describes the back-end of the architecture, written in Python, and outlines the main modules and the relationship between them, as well as important classes that can be extended to implement new behaviour to the system. Chapter \ref{sec:wireless} gives an overview of the front-end of the system, written in Max, describing the core Max objects of the system. Finally, the user-oriented documentation and tutorials of Somax, which are written in and integrated into Max and due to the visual format difficult to parse into text, are included in the appendix as screenshots.
+
+Do note that this is an early revision of the document and should only be seen as an outline of the architecture. It should contain any information necessary to add new classifiers, models, filters and other modular aspects of the system to the code, but it will not describe every aspect of the architecture nor does it go very deep into implementation details - for that it will be necessary to read through the entire code base. Still, it's intended to serve as a good starting point for such a process, and reading this document should  significantly speed up this endeavour.
+\begingroup
+	\graphicspath{{../SomaxOverview/}}
+	\section{An Introduction to Somax}\label{sec:2-gentleintro}
+	\input{../SomaxOverview/introduction}
+	\subsection{The Corpus and the Navigation Model}\label{ssec:1-corpusnavigationmodel}
+	\input{../SomaxOverview/corpus-and-navigation}
+	\subsection{Interaction}
+	\input{../SomaxOverview/interaction}
+	\subsection{Constructing the Corpus}
+	\input{../SomaxOverview/constructing-corpus}
+\endgroup

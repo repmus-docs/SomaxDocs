@@ -1,0 +1,75 @@
+\documentclass[11pt,a4paper]{report}
+\usepackage[utf8]{inputenc}
+\usepackage[document]{ragged2e}
+\usepackage[english]{babel}
+\usepackage{graphicx}
+\usepackage{csquotes}
+\usepackage{url}
+\usepackage{hyperref}
+\usepackage[a4paper,margin=1.3in,footskip=0.25in]{geometry}
+
+\usepackage{fancyhdr} % Headers and footers
+\pagestyle{fancy} % All pages have headers and footers
+\usepackage{hyperref}
+\usepackage{listings}
+
+\usepackage{fontspec}
+\setsansfont{Avenir Heavy}
+
+\usepackage[font=small,labelfont=bf]{caption}
+
+
+
+\usepackage{titlesec}
+\titleformat{\section} 
+  {\normalfont\LARGE\sffamily\bfseries}{\thesection}{1em}{}
+\titleformat{\subsection}
+  {\normalfont\large\sffamily}{\thesection}{1em}{}
+
+\usepackage{parskip}
+\parskip=1.2em
+
+\titlespacing\section{0pt}{12pt plus 2pt minus 2pt}{0pt plus 2pt minus 2pt}
+\titlespacing\subsection{0pt}{12pt plus 2pt minus 2pt}{0pt plus 2pt minus 2pt}
+\interfootnotelinepenalty=10000
+
+\fancyhead{} % Blank out the default header
+\fancyfoot{} % Blank out the default footer
+\fancyhead[R]{\ifnum\value{page}<2\relax\else\thepage\fi}
+\fancyhead[C]{A Gentle Introduction to Somax} % Custom header text
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{document}
+\thispagestyle{empty}
+
+%\maketitle
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%   DOCUMENT   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section*{A Gentle Introduction to Somax}
+\input{introduction}
+
+
+
+\subsection*{The Corpus and the Navigation Model}
+\input{corpus-and-navigation}
+
+\subsection*{Interacting with Somax}
+\input{interaction}
+
+\subsection*{Constructing the Corpus}
+\input{constructing-corpus}
+\pagebreak
+%\vspace{2em}
+
+\subsection*{A Few Concluding Words}
+Hopefully, you will by now have an idea of what Somax is, what it does and even some understanding of how it does it. Some of these concepts may be a bit vague at the moment, but if you're reading this for the first time you'll certainly know enough to get started with the interactive tutorials and some initial interaction with Somax. Inside of the package, you will find the tutorial («tutorial.maxpat»), which is based on a condensed version of Somax with a single player connected to an audio influencer and a midi influencer. You will also find the full version of Somax («somax2.maxpat»), which allows dynamic creation of players and influencers as well as dynamic routing between players and/or influencers. Each of the main Somax modules have a help file (accessible by pressing the «?»-button) which in detail explains how to use the model, its parametric controls as well as outlines a number of use cases relevant for that particular module. 
+
+If you at a later point want to experiment with more advanced configurations, it might be useful to return to this text after you've acquired some hands-on experience with the system, but depending on how you want to use the system, your current knowledge may be sufficient. If you, on the other hand, want to know even more about the system and its implementation, you can find a number of articles, technical reports and other resources at http://repmus.ircam.fr/somax/home.
+
+
+
+
+\end{document}

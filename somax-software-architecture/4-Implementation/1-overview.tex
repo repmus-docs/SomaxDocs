@@ -1,0 +1,11 @@
+\subsection{Overview}\label{sec:4-overview}
+ \begin{figure}[h]
+    \centering        
+ 	\includegraphics[width=0.99\textwidth]{figures/4-modules.png}
+    \caption{Module diagram over the main modules in the system and the relationship between them.}
+    \label{fig:4-modules}
+\end{figure}
+
+\noindent Figure \ref{fig:4-modules} shows the different modules of the system and how they relate to each other. There are two main branches in this figure, one stemming from the \texttt{RealtimeServer} module, corresponding to the real-time (i.e. human-machine improvisation) framework, and one stemming from the \texttt{Generator} module, corresponding to the offline (i.e. composition-oriented) framework. Both of them share the \texttt{Corpus} module (and its related \texttt{CorpusBuilder}), which handles the construction of corpora and will be described in section \ref{sec:4-corpus-builder}, and the \texttt{Main} module, which handles all the internal (runtime) logic of the system and will be described in section \ref{sec:4-main-architecture}. The \texttt{RealtimeServer} and its related \texttt{UserInterface} module will not be specifically described in this chapter, as they were thoroughly described in \cite{borg_2019}, and the updates to the user interface since then will be presented in chapter \ref{sec:wireless}. The logic of the \texttt{RealtimeScheduler} module, which handles the runtime scheduling of events over time, has however been significantly updated and will be presented in section \ref{sec:4-generator-evaluator-rt}. 
+
+In the branch stemming from the \texttt{Generator} module, the \texttt{Generator} itself will be described in section \ref{sec:4-generator-evaluator-generator} along with its \texttt{OfflineScheduler}, which handles scheduling as an offline process and will be described in section \ref{sec:4-generator-evaluator-offline}. Note that this branch has not been actively maintained since 2020-06-30 and has thus not updated with regards to the changes implemented in chapter \ref{sec:wireless}.

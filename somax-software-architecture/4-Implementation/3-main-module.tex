@@ -1,0 +1,142 @@
+\subsection{Runtime Architecture}\label{sec:4-main-architecture}
+The runtime architecture handles all the influencing and output generation, it's basically the core of the system. While most of it already has been explained in \cite{borg_2019}, some key aspects have been left out due to the article's condensed format, as well as some critical changes made since the article was written. For this reason, the design of the architecture and the relation between the algorithms described in \cite{somaxtheory2021} and the components of the system will be reiterated in the following section.
+
+ \begin{figure}[h]
+    \centering        
+ 	\includegraphics[width=0.99\textwidth]{figures/4-main-architecture.png}
+    \caption{Simplified class diagram over the main components of the runtime architecture.}
+    \label{fig:4-main-architecture}
+\end{figure}
+
+\subsubsection{The Runtime System's Components}\label{sec:4-main-architecture-components}
+The architecture of the system can be seen in figure \ref{fig:4-main-architecture}. At the root of the system is the \texttt{Player} class, through which all interaction with the system occurs. At the opposite end, at what could be considered the core of the system, is the \texttt{Atom}, where each \texttt{Atom} corresponds to one of the $r = 1,\dots,R$ layers described in \cite{somaxtheory2021}. The \texttt{Atom} contains one \texttt{Classifier} instance, corresponding to a classifier $\Theta^{(r)}$, one \texttt{MemorySpace} instance, corresponding to a model $\mathcal M^{(r)}$ and one \texttt{ActivityPattern} instance, which handles storing, shifting, decaying and concatenation of peaks $\bm P^{(r)}$ as described in \cite{somaxtheory2021}.
+ 
+ Inbetween the \texttt{Player} and the \texttt{Atom}s is the \texttt{StreamView} class. Each \texttt{Player} contains any number of \texttt{StreamViews}, which in turn is a recursive structure containing any number of \texttt{StreamView}s and any number of \texttt{Atom}s, effectively forming a tree structure where the \texttt{Player} correspond to the root of the tree, each \texttt{StreamView} correspond to a branch and each \texttt{Atom} correspond to a leaf of the tree. Each \texttt{Atom} and \texttt{StreamView} is assigned a (by the user controlled) weight $\alpha^{(r)}$ and at each branch in the tree, merging and user-controlled filtering $\Gamma$ are performed by the \texttt{MergeAction} class. Finally, once all peaks have been merged up through the tree to the \texttt{Player} class, a final set of (user-defined) \texttt{MergeAction}s are performed, and from that set of peaks, the output is selected by the \texttt{PeakSelector} class.
+ 
+ There are three main states in the runtime architecture, each roughly corresponding to the three first chapters of \cite{somaxtheory2021}: \textit{initialization} (i.e. constructing the corpus), \textit{influence} and \textit{output}.  In the initialization state, which is only performed once, the user defines the runtime architecture, i.e. the tree structure, which \texttt{Classifier}s (and \texttt{Memory\-Space}s and \texttt{Activity\-Pattern}s) to use in each layer, as well as the \texttt{MergeAction}s to use at each branch. This is also where the \texttt{Corpus} is built (or loaded from a previously built \texttt{Corpus}), clustered, classified and modelled in each of the \texttt{Atom}s. Note that while this step is mandatory for the initialization, the clustering, classification and modelling can be recomputed with different parameters in each of the \texttt{Atom}s while the system is running. 
+ 
+ The two other processes, \textit{influence} and \textit{output}, takes turns continuously while the system is running and operate in opposite directions, where the \textit{influence} state flows from the \texttt{Player} through the architecture, computing each of the steps defined in the chapter «Influence» of \cite{somaxtheory2021}, ending in each of the \texttt{ActivityPattern}s where the generated peaks are stored, while the \textit{output} process gathers all the generated peaks in each of the \texttt{ActivityPattern}s and merge them towards the \texttt{Player}, generating the output according to the steps in the chapter «Generate» of \cite{somaxtheory2021}.
+ 
+ 
+ \subsubsection{Modularity and Dynamicity}\label{sec:4-main-architecture-modularity}
+ Similarly to the \texttt{AbstractTrait} stereotype defined in section \ref{sec:4-corpus-builder-trait}, each of the components labelled with the \texttt{abstract} keyword in figure \ref{fig:4-main-architecture} can be substituted using each class' corresponding stereotype. For the \texttt{MemorySpace}, \texttt{ActivityPattern} and \texttt{PeakSelector} classes, this behaviour is simply for future use and their stereotypes will not be discussed in detail. In this work, the stereotypes for the \texttt{Classifier} class and the \texttt{MergeAction} class are of greater importance, as a number of each have been implemented and will be described in section \ref{sec:4-main-architecture-classifiers} and section \ref{sec:4-main-architecture-mergeactions} respectively.
+ 
+ Finally, among the novelties added to the system are the \texttt{Parametric} and \texttt{Parameter} classes (these are not displayed in figure \ref{fig:4-main-architecture}, but \textit{all} of the classes in the figure \textit{extends} the \texttt{Parametric} class). From a software engineering perspective, addressing a parameter somewhere inside dynamic tree can be difficult, especially when communicating with an external client over a string-based protocol. The purpose of the \texttt{Parametric} class is to expose any \texttt{Parameter} to the user interface. In practice, this means that any class that extends the \texttt{Parametric} class can declare any of its user-controlled parameters as a \texttt{Parameter} class, and it will be immediately available in the user interface with a name, type, range, description and optional setter function. The constructor for the \texttt{Parameter class} can be seen in figure \ref{fig:4-parameter}.
+ 
+ \begin{figure}
+ \begin{lstlisting}[language=Python]
+ class Parameter(HasParameterDict):
+      def __init__(self, default_value: Ranged, min_value: Ranged, 
+                   max_value: Ranged, type_str: str, 
+                   description: str, setter: Optional[Callable]):
+          # ...
+ \end{lstlisting}	
+ \caption{The constructor for the \texttt{Parameter} class.}
+ \label{fig:4-parameter}
+ \end{figure}
+
+ 
+ \subsubsection{Clustering and Classification: the \texttt{Classifier} class}\label{sec:4-main-architecture-classifiers}
+ Clustering and classification is handled by the \texttt{Classifier} class. Each classifier is implemented by extending the \texttt{AbstractClassifier} stereotype shown in figure \ref{fig:4-classifier}, implementing the functions \texttt{cluster}, \texttt{classify\_corpus} and \texttt{classify\_\-influence}. In practice, not all \texttt{Classifier}s rely on the \texttt{Corpus} for clustering - in fact some \texttt{Classifier}s don't implement the \texttt{cluster} function at all.
+ 
+ \begin{figure}
+ \begin{lstlisting}[language=Python]
+ class AbstractClassifier(ABC):
+    @abstractmethod
+    def cluster(self, corpus: Corpus) -> None:
+        pass
+
+    @abstractmethod
+    def classify_corpus(self, corpus: Corpus) -> List[AbstractLabel]:
+        pass
+
+    @abstractmethod
+    def classify_influence(self, influence: AbstractInfluence) -> AbstractLabel:
+        pass	
+ \end{lstlisting}
+ \caption{Stereotype for implementing a \texttt{Classifier}.}
+ \label{fig:4-classifier}
+ \end{figure}
+ 
+ In the current state of the system, these classifiers have been implemented:
+ 
+ \begin{description}
+ 	\item[Top Note Classifier] $\Theta^{(P_T)}$, which, as the trait $\theta^{(P_T)}$ already is a discrete parameter, simply is an identity classifier, defined so that
+ 		\begin{align}
+ 			l = \Theta^{(P_T)}\left(\theta^{(P_T)}\mid \mathcal C \right) = \theta^{(P_T)}, \quad l \in \mathbb Z_{[0, 127]},
+	 	\end{align}
+	 	in other words, a \texttt{Classifier} without any clustering and thus independent of $\mathcal C$.
+	 
+	 	
+	 \item[Pitch Class Classifier] $\Theta^{(P_{12})}$, defined so that 
+	 	\begin{align}
+	 		 l = \Theta^{(P_{12})}\left(\theta^{(P_T)}\mid \mathcal C \right) = \theta^{(P_T)} \operatorname{mod} 12, \quad l \in \mathbb Z_{[0, 11]}.
+	 	\end{align}
+		Again, a \texttt{Classifier} without any clustering and thus independent of $\mathcal C$.
+	 
+	 	
+	 \item[SOM Chroma Classifier] $\Theta^{(\bm C_\text{SOM})}$ A classifier of onset chroma vectors based on the original Somax implementation as defined in \cite{bonnasse-gahot_update_2014}. The clustering was computed using a self-organizing map on a matrix $\bm X$ of 3600 chroma vectors, i.e. $\bm X \in \mathbb R^{3600\times 12}$, returning a set of labels $\bm l^{(\bm X)} \in \mathbb Z_{[0, 121]}^{3600}$. The origin of these 3600 chroma vectors, as well as the exact parameters for the self-organizing map has unfortunately been lost, but this classifier will serve as an important base case when comparing different chroma classifiers.
+	 
+	 As the self-organizing map itself can't be used for classifying corpora or influences, this classifier will simply select the label of the row in $\bm X$ minimizing the distance to the chroma vector $\bm \theta^{(\bm C)} \in \mathbb R^{12}$ to classify, i.e.
+	 	\begin{align}\label{eq:3-csom-classification}
+	 		l &= \Theta^{(\bm C_\text{SOM})}\left(\theta^{(\bm C)} \mid \mathcal C\right) = l_i^{(\bm X)}
+	 	\end{align}
+	 	where 
+	 	\begin{align}
+	 		i &= \operatorname*{argmin}_{\bm x \in \bm X} \Vert \bm x - \bm \theta^{(\bm C)} \Vert_2
+	 	\end{align}
+	 	and $l_i^{(\bm X)}$ denotes the label in $\bm l^{(\bm X)}$ at index $i$.
+	 	
+	 
+	 \item[Absolute GMM Chroma Classifier] $\Theta^{(\bm C_{\text{AGMM})}}$ A classifier of onset chroma vectors based on a Gaussian Mixture Model clustering. The classifier uses the same matrix $\bm X \in \mathbb R^{3600\times 12}$ as the SOM Chroma Classifier for clustering, but with a user-defined number of clusters $K$. The initial clustering $\Theta^{(\bm C_{\lvert \text{GMM} \rvert})}_{i=0}$ is computed using K-means \cite{bishop2006pattern} with $K$ clusters and the EM-algorithm iterated for (user-defined) $I$ iterations. The classification is defined as	 
+	 x\begin{align}
+	 	l = \Theta^{(\bm C_{\text{AGMM}})}_I \left(\bm\theta^{(\bm C)} \mid \mathcal C\right) = \operatorname*{argmax}_{k \in 1\dots K} p\left( C^{(k)}_I \mid \bm \theta^{(\bm C)} \right)
+	 \end{align}
+	 where $C^{(k)}_I$ denotes cluster $k$ after $I$ iterations. Compared to the SOM Chroma Classifier, the main benefit with this is the variable number of clusters. Having a variable number of matches means that the precision of the classifier can be adjusted (where a higher number of clusters would mean a higher precision) at the cost of number of matches in the corpus (where a high number of clusters in most cases will result in less matches). This means that each performance can be parametrically tuned with regards to how well the corpus matches the input.
+	 
+	 
+	 \item[Relative GMM Chroma Classifier] $\Theta^{(\bm C_\text{RGMM})}$ This classifier is identical to the Absolute GMM Chroma Classifier, but uses the data in corpus $\mathcal C$ to construct the matrix $\bm X$, and thus uses $\mathcal C$ for both clustering and initial classification. In other words, we have
+	 \begin{align}
+	 	\bm X = \begin{bmatrix} \bm\theta^{(\bm C)}_1 \\ \vdots \\ \bm\theta^{(\bm C)}_U	\end{bmatrix},
+	 \end{align}
+$\bm X \in \mathbb R^{U\times 12}$. This is the first classifier where the clustering is input dependent. Compared to the Absolute GMM Chroma Classifier, having a clustering dependent on the corpus can potentially result in very poor matches if the corpus is harmonically dissimilar to the input, as the classification algorithm will simply select the match with the highest probability (which then may be very low). But on the other hand, if the corpus and the input are harmonically similar, the precision in the matches may be much higher, even with a low number of classes, thus (ideally) resulting in a high number of matches with high precision.
+	 
+ \end{description}
+ 
+ 
+ 
+ \subsubsection{Fuzzy Filtering: the \texttt{MergeAction} class}\label{sec:4-main-architecture-mergeactions}
+ The scaling of individual peaks with regards to parameters of the peaks or their related slices $\mathcal S^{(\mathcal C)}_u$ is handled by the \texttt{MergeAction} class, which only requires implementation of the \texttt{merge} function. The stereotype for this class is shown in figure \ref{fig:4-main-architecture-mergeaction}, and there are currently two such fuzzy filters that the system makes use of: 
+\begin{description}
+	\item[Phase Modulation] $\Gamma^{(\phi)}$ which scales the peaks with regards to their current phase/position in the beat so that peaks occurring at phase close to the current phase of the output time $t^{(\mathcal Y)}$ are emphasized and vice versa,
+	\begin{align}
+			\Gamma^{(\phi)}\left(\bm p_i\right) = \begin{bmatrix} t^{(\mathcal C)}_i & \phi_i y_i\end{bmatrix}^T
+			\quad \forall \bm p_i \in \bm P_w	
+	\end{align}
+	 where
+	 \begin{align}
+ 		\phi_i = \text{exp}\left[\cos\left(2\pi \left(t_w^{(\mathcal Y)} - t_i^{(\mathcal C)}\right)\right)-1\right], \quad \phi \in \mathbb R
+	 \end{align}
+	
+	\item[Next State Modulation] $\Gamma^{(+)}$ which scales peaks close in time to the previously output slice $\mathcal S^{(\mathcal Y)}_{w-1}$ by a constant $\alpha$, i.e. for some $\varepsilon \in \mathbb R$
+	\begin{align}
+		\Gamma^{(+)}(\bm p_i) = \left\lbrace \begin{array}{ll} \begin{bmatrix} t^{(\mathcal C)}_i & \alpha y_i \end{bmatrix}^T & \text{if } \left\lvert t^{(\mathcal{C})}_i - t^{(\mathcal C)}_{w-1} \right\rvert < \varepsilon
+		\\[0.24cm]
+		\bm p_i & \text{otherwise}
+		\end{array}\right. \quad \forall \bm p_i \in \bm P_w.
+	\end{align}
+\end{description}
+
+ \begin{figure}
+ 	\begin{lstlisting}[language=Python]
+class AbstractMergeAction(Parametric):
+   	@abstractmethod
+   	def merge(self, peaks: Peaks, time: float, 
+     		  history: ImprovisationMemory, 
+    		  corpus: Corpus = None, **kwargs) -> Peaks:
+  	    pass
+ 	\end{lstlisting}
+ 	\caption{Stereotype for implementing a \texttt{MergeAction}.}
+ 	\label{fig:4-main-architecture-mergeaction}
+ \end{figure}
+

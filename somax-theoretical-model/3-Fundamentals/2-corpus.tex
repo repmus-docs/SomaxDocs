@@ -1,4 +1,4 @@
-\section{Corpus}\label{sec:3-corpus}
+\chapter{Corpus}\label{sec:3-corpus}
  \begin{figure}[h!]
     \centering        
  	\includegraphics[width=0.99\textwidth]{figures/3-somax-corpus.png}
@@ -8,7 +8,7 @@
 
 \noindent The corpus $\mathcal C$ is the basis of Somax from which all output material will be drawn. It is constructed from one or multiple audio and/or midi files, which are segmented into short slices $\mathcal{S}$, where each segment is analyzed with respect to a number of traits $\theta$, clustered and classified in multiple layers - each layer with respect to a single trait -  and finally modelled according to a specific data model. This procedure can be seen in figure \ref{fig:3-somax-corpus}, and each step will be described in detail in the following sections.
 
-\subsection{Slicing}\label{sec:3-corpus-slicing}
+\section{Slicing}\label{sec:3-corpus-slicing}
 
  \begin{figure}[h!]
     \centering        
@@ -28,14 +28,14 @@ Each slice $\mathcal S^{(\mathcal C)}$ is assigned an index $u$, an onset time $
  \end{align}
 
 
-\subsection{Trait Analysis}\label{sec:3-corpus-traits}
+\section{Trait Analysis}\label{sec:3-corpus-traits}
 Note that all parameters in equation \ref{eq:3-slice-definition} apart from $\theta^{(1)}, \dots, \theta^{(Q)}$ are only related to timing, so the purpose of the traits $\theta$ is to store any other feature of the slice, for example pitch, velocity, harmonic content, etc. These traits will later be used for clustering, classification and modelling the corpus. Another purpose of modelling each slice in terms of traits is to make the model format-agnostic, i.e. independent of whether the corpus is based on midi or audio data. Formally, the procedure of calculating trait $\theta^{(q)}_u$ of slice $\mathcal S_u^{(\mathcal C)}$ can be described as 
 \begin{align}\label{eq:3-trait-analysis}
 	\theta^{(q)}_u = \Psi^{(q)} \left(\mathcal S_u^{(\mathcal C)}, \left[ \mathcal S^{(\mathcal C)}_{u-1},S^{(\mathcal C)}_{u-2},\dots\right]\right), \quad u = 1,\dots, U
 \end{align}
 where $\Psi^{(q)}$ denotes a function depending on $\mathcal S^{(\mathcal C)}_u$ (and optionally previous slices) for calculating trait $\theta^{(q)}_u$. Once the trait analysis is completed, the process of constructing (but not modelling) the corpus is completed. 
 
-\subsection{Clustering and Classification Modelling}\label{sec:3-corpus-clustering}
+\section{Clustering and Classification Modelling}\label{sec:3-corpus-clustering}
 The completed corpus $\mathcal C$  is modelled in $R$ layers, where each layer $r \in [1,R]$ has its own clustering $\Theta^{(r)}$ and model $\mathcal M^{(r)}$. The clustering in layer $r$ will be described as
 \begin{align}\label{eq:3-corpus-clustering}
 	\Theta^{(r)}\left(\theta^{(q)} \mid \mathcal C\right), \quad q \in [1, Q],

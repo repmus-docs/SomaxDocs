@@ -1,4 +1,4 @@
-\section{Influence}\label{sec:3-influence}
+\chapter{Influence}\label{sec:3-influence}
  \begin{figure}[h!]
     \centering        
  	\includegraphics[width=0.99\textwidth]{figures/3-somax-influence.png}
@@ -12,7 +12,7 @@ One key aspect of Somax is that the influence process has a short-time memory, s
 
 
 
-\subsection{Slicing}\label{sec:3-influence-slicing}
+\section{Slicing}\label{sec:3-influence-slicing}
 The slicing procedure of the influence process is almost identical to the procedure described in section \ref{sec:3-corpus-slicing}, with the exception that it in the case of a real-time stream uses different algorithms for onset detection and beat estimation (see \cite{borg_2019} for details). More formally, we will define the continuous stream $\mathcal K$ with an (in most cases undefined) length $V$ as
 \begin{align}
 	\mathcal K 	= \left\lbrace \mathcal S_1^{(\mathcal K)}, \dots, \mathcal S_V^{(\mathcal K)} \right\rbrace
@@ -25,7 +25,7 @@ where
 While the differences between equations \ref{eq:3-slice-definition} and \ref{eq:3-stream-slice-definition} seem to be that of replacing one index for another, there is one key difference that will be important in later sections: the difference between corpus time, $t^{(\mathcal C)}$, and continuous time $t^{(\mathcal K)}$. The corpus time $t^{(\mathcal C)}_u$, $u=1,\dots,U$ denotes the position of slice $\mathcal S_u^{(\mathcal C)}$ in the corpus which will always be fixed. The influence time $t^{(\mathcal K)}_v$ denotes the time of the current state $v$ in the process of generating and is closely related to scheduling, which is described in \cite{somaxsoftware2021}.
 
 
-\subsection{Trait Analysis, Classification and Matching to Model}\label{sec:3-influence-traits}
+\section{Trait Analysis, Classification and Matching to Model}\label{sec:3-influence-traits}
 Trait analysis and classification of a slice $\mathcal S_v^{(\mathcal K)}$ is identical to the procedure described in section \ref{sec:3-corpus}, more specifically to equation \ref{eq:3-trait-analysis} and \ref{eq:3-classification} respectively, with the only difference that it occurs in continuous time as soon as a slice $\mathcal S_v^{(\mathcal K)}$ has been segmented. 
 The system uses the $R$ layers that were used model the corpus, and in each layer the clustering created from the corpus is used for classification. In other words, at time step $t^{(\mathcal K)}_v$ corresponding to influence slice $\mathcal S_v^{(\mathcal K)}$ with traits $\theta_v^{(1)},\dots,\theta_v^{(Q)}$, we get one label $l_v^{(r)}$ per layer $r = 1,\dots, R$ so that 
 \begin{align}\label{eq:3-influence-classification}
@@ -34,7 +34,7 @@ The system uses the $R$ layers that were used model the corpus, and in each laye
 where $\theta^{(q)}_v$ denotes the single trait used in layer $r$ at the time step corresponding to index $v$.
 
 
-\subsection{Matching Slice to Model}\label{sec:3-influence-model}
+\section{Matching Slice to Model}\label{sec:3-influence-model}
 In each layer $r = 1,\dots R$, at time step $t^{(\mathcal K)}_v$ corresponding to influence slice $\mathcal S_v^{(\mathcal K)}$, a vector will be constructed from the previous  $k \in \mathbb Z_\ast$ labels, i.e.
 \begin{align}
 	\bm l_v^{(r)} = \begin{bmatrix} l_{v-k}^{(r)} & \dots & l_{v-1}^{(r)} & l_v^{(r)} \end{bmatrix},
@@ -50,7 +50,7 @@ where
 where $y_{u_m}$ is a score (height) designated to each peak by the model and $t_{u_m}^{(\mathcal C)}$ is the temporal position of the corresponding slice's onset.
 
 
-\subsection{Peaks}\label{sec:3-influence-peaks}
+\section{Peaks}\label{sec:3-influence-peaks}
 The final step in the influence process is to in each layer $r = 1,\dots R$ add the peaks $\bm P_v^{(r)}$ generated at time step $t^{(\mathcal K)}_v$ corresponding to index $v$ to the previous set of peaks $\bm P_{v-1}^{(r)}$ generated at the previous time step $t^{(\mathcal K)}_{v-1}$. The purpose of this behaviour is, as was described in section \ref{sec:3-influence}, to simulate a short-term memory, where previous influences maintain a degree of impact on the output. 
 
 To achieve this, the positions of the previous peaks are shifted (in \textit{corpus} time $t^{(\mathcal C)}$) corresponding to the influence time $t^{(\mathcal K)}$ elapsed since the previous influence, and the scores are decayed exponentially corresponding to the same interval scaled by a factor $\tau \in \mathbb R$, i.e.

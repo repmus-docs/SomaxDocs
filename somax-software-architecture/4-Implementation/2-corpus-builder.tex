@@ -1,4 +1,4 @@
-\subsection{Corpus Builder}\label{sec:4-corpus-builder}
+\section{Corpus Builder}\label{sec:4-corpus-builder}
 The purpose of the \texttt{CorpusBuilder} module is to construct the core of the system, the \texttt{Corpus}, from MIDI and/or audio files. It's an offline (as opposed to real-time) system that can be accessed both through a command-line build script as well as through the real-time user interface.
 
 Another purpose is to achieve the format-agnostic behaviour of the runtime system as was described in \cite{somaxtheory2021}, i.e. to ensure that there are no differences in how the runtime system handles corpora built from audio files in comparison to corpora built on MIDI files. However, as we will see in section \ref{sec:4-corpus-builder-trait}, this behaviour isn't fully implemented in the current version of Somax\footnote{As of 2021-04-12.}. For this reason, most of the behaviour described in this chapter will focus mainly on the MIDI implementation.
@@ -18,7 +18,7 @@ When building a corpus from MIDI files, the first step is to create a \texttt{No
 \label{fig:4-note-matrix}
 \end{figure}
 
-\subsubsection{Slicing}\label{sec:4-corpus-builder-slicing}
+\subsection{Slicing}\label{sec:4-corpus-builder-slicing}
 Once the \texttt{NoteMatrix} is constructed, the next step is to determine the temporal boundaries for each slice, i.e. slicing. This is done differently for audio and MIDI as described in \cite{somaxtheory2021} - per beat for audio and per note for MIDI. In the case of MIDI file(s), to achieve the behaviour outlined in chapter \ref{ssec:1-corpusnavigationmodel}, algorithm \ref{eq:4-slicing} is used. In this algorithm, the \texttt{NoteMatrix} is denoted $\mathcal N$, where $\mathcal N_i$ denotes the note at row $i$ and \texttt{.absolute\_onset}, \texttt{.relative\_onset}, etc. denote the columns corresponding to indices in figure \ref{fig:4-note-matrix}. The algorithm is iterating over all MIDI notes and creating a new slice for any note whose onset is more than $\varepsilon \in \mathbb Z_+$ millseconds from the previous note, otherwise appending the note to the current slice. The parameter $\varepsilon$ is very important, as it will ensure that notes occurring sufficiently close (for example appoggiaturas and other articulation) are treated as part of the same slice, which both will be important for analysis later as well as maintaining the original rhythmic feel of the file without quantization. Another important aspect of the algorithm is line \ref{lst:4-slicing-concat}, which results in that any note in the previous slice that overlaps into the new slice will be added as well, and thus have an onset $\mathcal N_i\texttt{.relative\_onset}$ that may be earlier than the slice onset $d_u$. This will play an important role when scheduling slices, which is be described in section \ref{sec:4-generator-evaluator-scheduler}. The result of the slicing procedure is the \texttt{Corpus} class with all parameters set apart from its \texttt{Trait}s.
 
 \begin{algorithm}[h!]
@@ -50,7 +50,7 @@ Once the \texttt{NoteMatrix} is constructed, the next step is to determine the t
 \end{algorithmic}
 \end{algorithm}
 
-\subsubsection{Trait Analysis}\label{sec:4-corpus-builder-trait}
+\subsection{Trait Analysis}\label{sec:4-corpus-builder-trait}
 In parallel with the slicing, two lowpass-filtered pseudo-spectrogram are computed  from the \texttt{NoteMatrix} in the \texttt{Spectrogram} class, one for the foreground (melodic) channels and one for the background (harmonic) channels, which are both specified by the user. If no channels are specified, the foreground and background spectrogram will be computed from the entire set of channels and thus be identical. The procedure for computing the pseudo-spectrogram is the same as in \cite{borg_2019}, with the addition of the filter being interchangeable to allow different types of filtering, as well as no filtering at all. From these spectrogram, two pseudo-chromagram are computed in the \texttt{Chromagram} class, again one for the foreground channels and one for the background channels. For audio, these are computed directly from the audio data.
 
 Once the \texttt{Spectrogram} and the \texttt{Chromagram} have been computed and the slicing procedure to create the \texttt{Corpus} is completed, the trait analysis begins. The trait analysis is dynamic, which means that it will import any class in the code base extending the \texttt{AbstractTrait} stereotype (see figure \ref{fig:3-abstract-trait-code}) and call the \texttt{analyze} function on each slice in the corpus. 
@@ -87,7 +87,7 @@ In the current state of the system, the following traits have been implemented:
 \end{description}
 
 
-\subsubsection{The Corpus}
+\subsection{The Corpus}
 With the trait analysis completed, the \texttt{Corpus} class is finalized. Once again, it's important to emphasize the two purposes of the \texttt{Corpus} class: to (a) abstract the data of the audio/midi file(s) into high-level data that can be used for classification and (b) to create a format-agnostic object. The latter means that from this point, all raw MIDI and audio data as well as the spectrogram and chromagram will be thrown away. For MIDI data, this isn't a problem, as the \texttt{Note}s trait $\theta^{(\mathcal N)}$ contains all the MIDI data - in fact, the \texttt{Corpus} and \texttt{NoteMatrix} are interchangeable, thus allowing re-export of the \texttt{Corpus} back to MIDI. For audio data, only a reference to the original file will be kept, thus the raw audio data corresponding each slice $\mathcal S^{(\mathcal C)}_u$ can be reproduced by its absolute onset $\tau_u$ and its absolute duration $\delta_u$. This compact data format also allows exporting the corpus as a JSON-file for quickly reloading previously built corpora.
 
 Finally, while the \texttt{CorpusBuilder} module is the main way to construct a \texttt{Corpus}, it's not the only way. As we will see in section \ref{sec:4-main-architecture}, a \texttt{Corpus} can be constructed from another \texttt{Corpus} during a real-time performance, and as we will see in section \ref{sec:4-generator-evaluator}, it can also be generated from other corpora offline.

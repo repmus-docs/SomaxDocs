@@ -4,6 +4,20 @@ This mapping occurs three-fold. Firstly, a player will have to know what subset 
 
 For example, when creating a corpus from a polyphonic MIDI file (e.g. a string quartet with channels one to four assigned to the different instruments), the user could want the system to map notes from channel one (e.g. the lead violin) to the player's melodic listening dimension and notes from channels two to four (e.g. the remaining instruments) to its harmonic listening dimension. When a player, loaded with the said corpus, reacts to an incoming influence, it will continuously try to match the melodic and harmonic dimensions coming from the influence to is listening melodic and harmonic dimensions as mapped from the corpus. So, for example, if this player specifies channels two to four as output channels and listens to the melodic influence of a monophonic input from a musician, this  means that the system will attempt to find slices where the content of channel one (e.g. the lead violin) corresponds to the input of the musician, while only outputting the content of channel two to four (e.g. the rest of the quartet). In this case, it would effectively generate an accompaniment to the input of the musician.
 
+ \begin{figure*}[h!]
+    \centering        
+ 	\includegraphics[width=0.7\textwidth, keepaspectratio]{img/corpusbuilder.png}
+    \caption{Specifying the melodic (pitch) and harmonic (chroma) dimensions when building the corpus that will feed the players.}
+    \label{fig:myFig}
+\end{figure*}
+
 For a more complex input to the system (e.g. multiple musicians, a multichannel MIDI file, etc.) it is in the same manner possible to  set the mapping between the input's MIDI channels and the melodic and harmonic dimensions used to generate influences to the system. This can be very useful in systems with multiple players that are listening to and influencing each other. Returning to the example with the string quartet corpus, we could create a system with two players: player \textit{P1}, generating its improvisation from the melodic part of the corpus (e.g. the lead violin's part) and another player \textit{P2}, generating its improvisation from the harmonic part of the same corpus (e.g. the rest of the quartet). We could now have \textit{P1} reactive to the melodic influence from a live musician; \textit{P2} could react to \textit{P1} by generating a harmonic texture coherent with \textit{P1}'s directions; \textit{P2} could also influence \textit{P1}'s progression choices on a harmonic basis, thus competing with the external musician's influence. 
+
+ \begin{figure*}[h!]
+    \centering        
+ 	\includegraphics[width=0.7\textwidth, keepaspectratio]{img/twoplayers.png}
+    \caption{Interconnecting the players to an audioinfluencer and one to another, with feedback from $P2$ to $P1$.}
+    \label{fig:myFig}
+\end{figure*}
 
 As shown in the above example, it is possible to create highly sophisticated networks of players influencing each other with detailed control over each player's listening and output dimensions. However, In simple cases (e.g. a single player with a corpus constructed from a piano MIDI file consisting of one or two channels) it is not necessary to focus on this particular aspect of the system -  the default settings\footnote{By default,  all channels are mapped to all dimensions in all players and influencers. In this case, the whole musical content will influence both the harmonic dimension as well as the melodic (by default, the highest note registered will feed the melodic dimension although you can specify otherwise, e.g. bass line, etc.)} will suffice. While the "ideal" output in this case, as mentioned in the beginning of this section, would be an identical replication of the input, the discrepancies between the input and the corpus will almost always ensure that the output is much more dynamic than a simple replication. Still, being aware of these intricacies will, once you've familiarized yourself with Somax, be very helpful for configuring the system for specific situations and improving the quality of the output.

@@ -1,0 +1,36 @@
+\section{Embedded and Distributed Somax}
+In collaboration with HyVibe, a first step towards integrating the Somax system in the HyVibe Guitar has been taken. A number of optimizations of the Somax system has been made to facilitate the future integration of the system into the microcontroller used in the HyVibe Guitar (which does not have the same processing power as a modern laptop, which Somax normally runs on). An intermediate prototype has been constructed, where the back-end server of the Somax system is running on a separate microcontroller and communicating directly with the HyVibe Guitar as well as the Max front-end on a separate computer. 
+
+For this particular purpose, distributed versions of the server and front-end were implemented, which in turn allows multiple machines to communicate with a single server over a network. This means that several agents may exist on multiple machines and communicate with each other wirelessly and thereby allowing Somax to work as a fully distributed system.  The original architecture, as described in chapter 4 of \cite{somaxsoftware2021}, was already designed as a local back-end server communicating with a local front-end client over a network-compatible protocol (OSC \cite{osc2022}), with the intention of being able to move to a fully distributed system at some point. With this in mind, no large architectural changes were needed to adapt Somax from a local system to a fully distributed one.
+
+In terms of optimizations, the most expensive runtime operations in Somax revolve around the aspects of creating, shifting and scaling peaks (see chapter 3 and 4 of \cite{somaxtheory2021} for details). Here, a number of strategies to handle the peaks along a discretized time axis were implemented, in order to reduce the computational cost of the above mentioned operations. The source code for the distributed Somax architecture is available at \cite{somaxdistributed2022}.
+
+
+%%%%
+
+
+@misc{osc2022,
+	title = {OSC},
+	howpublished = {\url{https://opensoundcontrol.stanford.edu/}},
+	note = {Accessed: 2022-02-01}
+}
+
+
+
+@misc{somaxsoftware2021,
+	title = {The {Somax} {Software} {Architecture}},
+	howpublished = {Ircam-STMS, Technical Report},
+	year = {2021}
+}
+
+@misc{somaxtheory2021,
+	title = {The {Somax} {Theoretical} {Model}},
+	howpublished = {Ircam-STMS, Technical Report},
+	year = {2021}
+}
+
+@misc{somaxdistributed2022,
+	title = {Somax2 at dev-hyvibe},
+	howpublished = {\url{https://github.com/DYCI2/Somax2/tree/dev-hyvibe}},
+	note = {Accessed: 2022-01-31}
+}

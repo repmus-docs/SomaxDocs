@@ -1,0 +1,102 @@
+\documentclass[10pt]{report}
+\usepackage[utf8]{inputenc}
+\usepackage{cite}
+\usepackage[english]{babel}
+\usepackage{amsmath}
+\usepackage{csquotes}
+\usepackage{url}
+\usepackage{hyperref}
+\usepackage{graphicx}
+\usepackage{amssymb}
+\usepackage{abstract} % Allows abstract customization
+\usepackage{fancyhdr} % Headers and footers
+\pagestyle{fancy} % All pages have headers and footers
+\usepackage{titling}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{bera}	% Font for listings
+\lstset{basicstyle=\ttfamily\small,
+escapeinside={||},
+mathescape=true}
+\pagenumbering{arabic}
+\usepackage{bm}
+\usepackage{upgreek}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\usepackage{setspace}
+\usepackage[font=small]{caption}
+\usepackage[
+%  disable, %turn off todonotes
+  colorinlistoftodos, %enable a coloured square in the list of todos
+  textwidth=\marginparwidth, %set the width of the todonotes
+  textsize=scriptsize, %size of the text in the todonotes
+  ]{todonotes}
+ \usepackage{subfiles}
+
+\fancyhead{} % Blank out the default header
+\fancyfoot{} % Blank out the default footer
+\fancyhead[C]{Somax 2 Developer's Documentation}
+\fancyfoot[C]{\thepage}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\title{The Somax 2 Developer's Documentation\\[0.24cm]
+	\large{Rev. 0.1.0}}
+\author{Joakim Borg }
+\date{\today}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Abstract %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%\renewcommand{\maketitlehookd}{
+%	\begin{abstract}
+%	\noindent abstract abstract abstract todo (or maybe skip?)
+%	\end{abstract}
+%}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{document}
+\maketitle
+\chapter*{}
+\large{\textbf{Credits}\\}\\
+\small{
+Somax 2 \copyright \ Ircam 2012-2023\\
+
+\noindent Somax 2 is a renewed version of the Somax reactive co-improvisation paradigm by G. Assayag.
+Architecture, UI and code completely redesigned and written by Joakim Borg in Max and Python.
+\\
+
+\noindent \textbf{Legacy:}
+\begin{itemize}
+\item Early Java prototype by Olivier Delerue: adding reactivity to OMax.
+\item Versions 0.1 to 1.3 by Laurent Bonnasse-Gahot: conception of the reactive memory and  influence  dimensions model.
+\item Versions 1.4 to 1.9  by Axel Chemla-Romeu-Santos: separation of the Python server and object oriented design.
+\end{itemize}
+
+\medskip
+\noindent The Somax 2 project  is part of the ANR project MERCI (Mixed Musical Reality with Creative Instruments) and the ERC project REACH (Raising Co-creativity in Cyber-Human Musicianship).
+\\
+
+\noindent PI : Gérard Assayag\\
+Music Representation Team\\
+IRCAM STMS Lab (CNRS, Sorbonne University, Ministry of Culture).
+\\
+
+\noindent\url{repmus.ircam.fr/impro}
+}
+
+
+\tableofcontents
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%   DOCUMENT   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\input{overview}
+\input{4-Implementation/0-implementation.tex}
+\input{wireless}
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\bibliography{reference.bib}{}
+\bibliographystyle{plain}
+\end{document}

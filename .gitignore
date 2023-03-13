@@ -326,3 +326,11 @@ Temporary Items
 .apdisk
 
 # End of https://www.toptal.com/developers/gitignore/api/latex,macos
+
+
+# Visual Paradigm
+*.vpp.bak*
+*.vpp.lck
+
+# Jetbrains
+.idea

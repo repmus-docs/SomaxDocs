@@ -1,1 +1,25 @@
 \chapter{Overview}\label{sec:1-overview}
+
+This report outlines the implementation of the Somax 2 library and is intended for future developers and maintainers of the project. A number of reports have already been published for the Somax project, more recently \cite{somaxtheory2021}, published in 2021, which presents the theoretical foundation of the library, \cite{somaxsoftware2021}, published in 2021, which outlines the library's software architecture and \cite{somaxmidterm2022}, which describes a number of contributions added to the library since the two former reports were published.
+
+The above reports serve as a theoretical, high-level foundation for the project and were intended for expert users and associated researchers who would like to modify or extend the behaviour of Somax without having to understand the whole code base. In some sense, they all provide answers to the question 'what?'. In contract, this report is intended for developers who needs full understanding of the entire code base, and will provide answers to the questions 'how?' and 'why?'. This means that the focus of this report is solely the lower levels of the code; it will not describe the theoretical model of Somax — the assumption here is that the reader is already well acquainted with these reports and knows how Somax works from a theoretical point of view. The reader is also assumed to have a good knowledge of Python and MaxMSP, trivial code (i.e. code that closely follows the standard in either of the two languages without any complicated optimizations, IO operations, multiple inheritance or other aspects that may make the code difficult to understand) will not be explained. While the question 'how?' can be fully answered by simply reading through the entire code base (and should be done by any future developer regardless), reading this report should greatly reduce the amount of time needed while doing so.
+
+Finally, since the last update on the project was released in 2022 \cite{somaxmidterm2022}, a number of alterations have been made to the architecture. This report will therefore, whenever needed, outline these alterations. More specifically, everything up to and including version 2.5.0 of Somax will be covered by this report
+
+
+\section{Files \& Folders}\label{ssec:1-filesfolders}
+The folder structure of the Somax 2 repository \cite{somaxrepo} can be seen in figure \ref{fig:1-filesfolders}. The \texttt{codesign/} and \texttt{media/} folders and the \texttt{Makefile} are only relevant for the compilation step (see section \ref{ssec:2-compilation}). 
+
+The \texttt{max/somax/} folder contains all the MaxMSP code and is structured as a Max package. When distributing releases of Somax (i.e. with the Python code compiled into an app bundle), this folder should be the root folder of the distribution (again, see section \ref{ssec:2-compilation}), and while developing/using Somax directly from the GitHub repository,  only this folder should be added to the File Preferences in Max (or symlinked to the \texttt{Max\ 8/Packages} folder).
+
+The \texttt{python/somax/} folder is structured as a PyPI package, with all of the Python code contained in the \texttt{python/somax/somax/} subdirectory and the normal \texttt{requirements.txt} for installing all of the Python dependencies. 
+
+The procedure for installing Somax as a developer is described in the \texttt{README.md} under "Manual Installation".
+
+
+ \begin{figure}[h!]
+    \centering        
+ 	\includegraphics[width=0.4\textwidth, keepaspectratio]{figures/files-folders.png}
+    \caption{Structure of the Somax 2 repository}
+    \label{fig:1-filesfolders}
+\end{figure}

@@ -1,18 +1,40 @@
 \chapter{The Python Architecture}\label{sec:2-python-architecture}
-This chapter will outline the 
 
 \section{Overview}\label{ssec:2-overview}
-UML ref, layout of chapter, ...
+The Python code base is the back-end of Somax and contains all of the generative aspects of the system, including modelling and classification, the implementation of the corpus and associated descriptors, scheduling and temporal behaviours, etc. The Python code base interacts with the Max front-end through OSC, where the Max front-end mainly handles real-time audio analysis and rendering, along with relevant visualization, as well as providing the user with an interface and/or GUI for interaction, but everything else is handled in Python.
 
-\subsection{Associated Libraries and Branches}\label{ssec:2-librarybranches}
-GIG library, \texttt{dev-merge-osc} (as these will be referred to occasionally in the text), etc.
+A class diagram for the entire Python architecture is available in appendix \ref{sec:a-class-diagram}, and parts of this class diagram will be used throughout this chapter to illustrate certain parts of the architecture.
+
+This chapter is divided into a number of sections, each outlining different aspects of the software architecture. Section \ref{ssec:2-io-parsing} describes the entry points into the application and how the OSC communication and interaction between the core elements work, section \ref{ssec:2-corpus} explains the architecture of the corpus, section \ref{ssec:2-scheduling} explains all aspects of the back-end related to time and scheduling, section \ref{ssec:2-player} describes the architecture of the \texttt{Player}, i.e. the class that is responsible for the modelling of the corpus and matching influences, and finally section \ref{ssec:2-compilation} will describe the current procedure of compiling the Python code into a standalone application for distribution.
 
 
-\todo{- UML here + overview describing the structure of this chapter.}
+\subsection{Associated Libraries}\label{ssec:2-librarybranches}
+In addition to standard dependencies (such as Librosa, Numpy, Scipy, etc., see \texttt{python/somax/requirements.txt} for a full list), there are two external libraries that were developed within the team specifically for the needs of Somax and its related DICY2 library \cite{nika2016thesis}, \cite{nika2022dicy2}. These are the MaxOSC library \cite{maxoscrepo} and the GIG library \cite{gigrepo}. 
+
+
+
+\subsubsection{The MaxOSC Library}\label{ssec:2-maxosc}
+
+The MaxOSC library was developed early in the 2.0 beta phase of Somax with the intention of facilitating OSC communication between Max and Python. It contains a number of classes for exposing a Python class' member functions so that they are directly callable over OSC using a Python-like syntax, as well as adding support for more complex types than the ones supported by the OSC protocol \cite{osc2022} (such as nested lists, hash maps, etc.)
+
+The MaxOSC library was initially developed as two sister libraries: MaxOSC, the Python library described above, and PyOSC, a set of Max objects for facilitating the interaction in Max.\footnote{Note that the name of the python repository is \texttt{pyosc} for this reason, but only the subfolder \texttt{maxosc} is currently used in Somax} The latter was revisited during the work on the \cite{gigrepo} (described below) and new externals for synchronous as well as asynchronous OSC calls to a remote, hierarchical class architecture\footnote{See the \texttt{dev-connector-singleton} branch of the \texttt{pyosc} repository}, were developed, but ultimately not used in the current version of as the development of Somax took a different turn when the development of DICY2 ceased. The MaxOSC library is available on PyPI and can be installed directly through \text{pip}.
+
+
+\subsubsection{The GIG Library}\label{ssec:2-gig}
+
+The GIG library \cite{gigrepo} was developed in 2022 with two goals in mind. Firstly, to provide a unified architecture for Somax and DICY2 so that research and improvements in either of the two would benefit the other, as well as ideally merge the two into a single framework of generative agents. Secondly, to use our experiences of working with the libraries to unify and solve a number of architectural issues with the current implementations, as well as to  generalize a number of functionalities (such as OSC parsing, scheduling, classification, corpus building, etc.) and thereby provide easy-to-use classes that could be used in future projects. 
+
+Ultimately, the GIG library was not put to use in Somax as it was abandoned when the DICY2 development came to a halt, but it is referenced frequently in this report, as it provides solutions to a number of problems that still exist in the current code base of Somax, and could be used as a future reference. The rewritten version of Somax, based on the GIG library, is available on the \texttt{dev-merge-osc} branch of the Somax2 repository.
+
+The GIG library is currently not available on PyPI, but it can be imported as a submodule. See the \texttt{Dicy2-python} repository \cite{dicy2pythonrepo} for reference on how to use it.
+
 
 \section{Input/Output \& Parsing}\label{ssec:2-io-parsing}
 
+
+
 \section{The Corpus}\label{ssec:2-corpus}
+TODO: how to implement new features
 
 \section{Scheduling}\label{ssec:2-scheduling}
 

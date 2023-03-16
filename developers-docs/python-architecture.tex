@@ -1,5 +1,10 @@
 \chapter{The Python Architecture}\label{sec:2-python-architecture}
 
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% OVERVIEW 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 \section{Overview}\label{ssec:2-overview}
 The Python code base is the back-end of Somax and contains all of the generative aspects of the system, including modelling and classification, the implementation of the corpus and associated descriptors, scheduling and temporal behaviours, etc. The Python code base interacts with the Max front-end through OSC, where the Max front-end mainly handles real-time audio analysis and rendering, along with relevant visualization, as well as providing the user with an interface and/or GUI for interaction, but everything else is handled in Python.
 
@@ -7,6 +12,7 @@ A class diagram for the entire Python architecture is available in appendix \ref
 
 This chapter is divided into a number of sections, each outlining different aspects of the software architecture. Section \ref{ssec:2-io-parsing} describes the entry points into the application and how the OSC communication and interaction between the core elements work, section \ref{ssec:2-corpus} explains the architecture of the corpus, section \ref{ssec:2-scheduling} explains all aspects of the back-end related to time and scheduling, section \ref{ssec:2-player} describes the architecture of the \texttt{Player}, i.e. the class that is responsible for the modelling of the corpus and matching influences, and finally section \ref{ssec:2-compilation} will describe the current procedure of compiling the Python code into a standalone application for distribution.
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \subsection{Associated Libraries}\label{ssec:2-librarybranches}
 In addition to standard dependencies (such as Librosa, Numpy, Scipy, etc., see \texttt{python/somax/requirements.txt} for a full list), there are two external libraries that were developed within the team specifically for the needs of Somax and its related DICY2 library \cite{nika2016thesis}, \cite{nika2022dicy2}. These are the MaxOSC library \cite{maxoscrepo} and the GIG library \cite{gigrepo}. 
@@ -26,19 +32,122 @@ The GIG library \cite{gigrepo} was developed in 2022 with two goals in mind. Fir
 
 Ultimately, the GIG library was not put to use in Somax as it was abandoned when the DICY2 development came to a halt, but it is referenced frequently in this report, as it provides solutions to a number of problems that still exist in the current code base of Somax, and could be used as a future reference. The rewritten version of Somax, based on the GIG library, is available on the \texttt{dev-merge-osc} branch of the Somax2 repository.
 
-The GIG library is currently not available on PyPI, but it can be imported as a submodule. See the \texttt{Dicy2-python} repository \cite{dicy2pythonrepo} for reference on how to use it.
+The GIG library is currently not available on PyPI, but it can be imported as a git submodule. See the \texttt{Dicy2-python} repository \cite{dicy2pythonrepo} for reference on how to use it.
 
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% INPUT/OUTPUT & PARSING
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \section{Input/Output \& Parsing}\label{ssec:2-io-parsing}
+When using Somax with the Max front-end, the \texttt{somax\_server.py} file contains the \texttt{main} function, and once launched, any other communication will be handled solely through OSC. The \texttt{main} function instantiates the \texttt{SomaxServer} class, which corresponds to the \texttt{somax.server} object in Max (see section \ref{ssec:3-server}).
+
+The \texttt{SomaxServer}'s main role is to manage the application's \texttt{OscAgent}s, where each \texttt{OscAgent} corresponds to a \texttt{somax.player} object (see section \ref{ssec:3-player}). It's also responsible for the \texttt{Transport} object, which is the clock that synchronizes time between all the different players (this will be further described in section \ref{ssec:2-scheduling}). 
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{AsyncioOscObject}
+
+Both the \texttt{SomaxServer} and \texttt{OscAgent} inherit from the \texttt{AsyncioOscObject}, which is the class responsible for all OSC handling. This class uses an \texttt{asyncio}-based \cite{pyasyncio2021} UDP server for handling messages sent from the Max front-end, which means that it's able to have zero or more runtime callbacks that are processed in parallel with OSC I/O operations. Note that while \texttt{asyncio} in some sense allows us to write concurrent code, it's still effectively single-threaded, so there's no need to worry about race conditions, data races or other parallelism-related issues. This applies to all of the Somax library: while it relies on several parallelism-oriented libraries (both multiprocessing \cite{pymultiproc2021} and asyncio), it's designed so that no resources ever are shared and each component of the system can always be treated as if it was single-threaded.
+
+The \texttt{AsyncioOscObject} inherits from the \texttt{Caller} class of the \texttt{maxosc} package, which automatically exposes all function of the class (and any class inheriting from it) so that it can be called directly over OSC using a python-like syntax. For example, a function like
+
+\begin{lstlisting}
+def create_agent(self, 
+                 name: str,
+                 recv_port: int, 
+                 send_port: int,
+                 ip: str = "",
+                 override: bool = False)
+\end{lstlisting}
+can be called over OSC using any of the following messages
+
+\begin{lstlisting}
+/somax create_agent "Player1" 1234 1235 "127.0.0.1" 1
+/somax create_agent name= "Player1" recv_port= 1234 send_port= 1235 override= 1
+/somax create_agent name="Player1" recv_port=1234 send_port=1235 override=True
+/somax create_agent "Player1" 1234 1235 override= 1
+\end{lstlisting}
+In other words, the syntax is similar to how a Python function normally is called but adapted to a Max environment (using spaces rather than commas, allowing spaces between argument names and values, e.g. \texttt{recv\_port= 1234} rather than \texttt{recv\_port=1234}, to avoid having to use the \texttt{combine} object in Max for named arguments, etc.) It's also possible to pass nested lists and/or dictionaries from Max with a Python-like syntax. e.g. for some Python function \texttt{f} that accepts nested lists, any of the following calls from max would be valid:
+
+\begin{lstlisting}
+	/somax f []
+	/somax f [ 1 2 3 4 ]
+	/somax f [1 2 3 4]
+	/somax f [ [1 2] [3 4] [ 5 6 ]]
+\end{lstlisting}
+Note that the OSC address is not used at all (it's \texttt{/somax} for all calls to the \texttt{SomaxServer} and the name of the agent for any call to a \texttt{OscAgent}, but both of these are redundant as each server and agent uses its own set of ports). This is because the underlying \texttt{python-osc} library does not support adding OSC addresses dynamically through OSC calls (e.g. if we want to create an agent \texttt{agent1} at address \texttt{/somax/agent1} through the \texttt{create\_agent} function called over OSC, this will simply not work using the \texttt{python-osc} library).
+
+The \texttt{\_main\_loop} function is the only abstract function of the \texttt{AsyncioOscObject}. In the \texttt{SomaxServer}, this is implemented as a dynamic variable \texttt{self.loop}, which is bound either to the \texttt{\_\_master\_loop} or \texttt{\_\_slave\_loop} functions. At the moment, only the \texttt{\_\_master\_loop} is used, but the \texttt{\_\_slave\_loop} function was added in order to allow synchronizing the transport of the \texttt{SomaxServer} to an external clock, for example the Live transport (if using Somax in Max for Live device) or a transport in Somax. This is however not exposed in the front-end (i.e. the Max \texttt{somax.server} object) at the moment.
+
+Also note that an improved version of the \texttt{AsyncioOscObject} exists in the GIG library (there called \texttt{AsyncOsc}), which has a number of subclasses for handling different types of async OSC communication.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{SomaxServer \& OscAgent}\label{ssec:2-server-agent}
+The central class of the Somax library is the \texttt{OscAgent}, which, as mentioned above, corresponds to the \texttt{somax.player} object. The \texttt{OscAgent} is initialized through the \texttt{SomaxServer}, but once initialized, the \texttt{somax.player} and \texttt{OscAgent} communicate directly through their own set of OSC ports. This class is responsible for handling all input/output to the \texttt{Player} (such as influences, output requests, setting parameters, etc.), as well as the co-ordinating time management between the \texttt{SomaxServer} and the \texttt{Player}, which is managed through the \texttt{SchedulingHandler}.
+
+The \texttt{OscAgent} inherits from \texttt{multiprocessing.Process} class, which essentially is a way to bypass the global interpreter lock (GIL) in Python. Since the operations of the \texttt{OscAgent} (or more specifically the \texttt{Player}, which is owned by the \texttt{OscAgent}). Communication between the \texttt{OscAgent} and \texttt{SomaxServer} is handled through a \texttt{multiprocessing.Queue}, essentially a two-way pipe which passes \texttt{ProcessMessage}s between the two objects. Almost all of the communication are messages related to time and scheduling and will be described in section \ref{ssec:2-scheduling}\footnote{The only exceptions are the \texttt{PlayControl.CLEAR} and \texttt{PlayControl.TERMINATE} messages of the \texttt{ControlMessage} class, which calls \texttt{OscAgent.clear()} and \texttt{OscAgent.terminate()} functions accordingly.}.
+
+The \texttt{SomaxServer} owns the \texttt{OscAgent}s and is responsible for joining their processes once finished (e.g. when the server is shut down or if the \texttt{somax.player} is deleted in Max). In addition, the \texttt{SomaxServer} is also managing the \texttt{CorpusBuilder}s, which will be launched as separate \texttt{multiprocessing.Process}es when the user is building a corpus (in order to not block the \texttt{Transport} while building corpora). 
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{The Target class}\label{ssec:2-target-class}
+
+Any output from the \texttt{OscAgent} and \texttt{SomaxServer} classes (i.e. messages to the front-end) are sent through the \texttt{Target} class, which is a light wrapper around the \texttt{pythonosc} UDP client (with some formatting for Max compatibility). In other words, all OSC communication is handled by the \texttt{OscAgent} and \texttt{SomaxServer} classes, so these are the only two classes one needs to understand to fully understand all supported IO operations\footnote{There's one slight exception to this rule: the \texttt{ThreadedCorpusBuilder}. Once the process of building a corpus through the \texttt{ThreadedCorpusBuilder} has been launched, it does not communicate with the \texttt{SomaxServer}, but its return value, which is either the path of the built corpus or an error message, is sent through its own \texttt{Target}, which however is using the same ports as the \texttt{SomaxServer} and hence received directly by the \texttt{somax.server}'s \texttt{udpreceive} object.}. 
+
+The \texttt{Target} will, just like the \texttt{AsyncioOscObject} return messages to a the same static OSC addresses mentioned above, and rather use a keyword for the OSC messages to the Max front-end (which is the common practice in Max). All of the keywords for the OSC messages sent from the \texttt{SomaxServer} and \texttt{OscAgent} are stored in the \texttt{ServerSendProtocol} and \texttt{PlayerSendProtocol} respectively. In other words, the entire protocol for OSC messages sent from the back-end to the front-end can be understood by reading through these two classes.\footnote{Similarly, the entire protocol for OSC messages from the front-end to the back-end can be understood by reading the function signatures of the \texttt{SomaxServer} and \texttt{OscAgent} classes.}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Parsing \& Exception Handling}\label{ssec:2-parsing-introspective}
+As the \texttt{SomaxServer} and \texttt{OscAgent} classes are handling all I/O operations, they are also responsible for parsing the messages and ensuring that no invalid messages are accepted. 
+
+The Somax Python library relies heavily on type annotations, and will generally not check whether the correct type is passed; this is rather left to the developer/user to handle ("We're all consenting adults here", as the Python mantra goes). The one exception to this rule are the \texttt{SomaxServer} and \texttt{OscAgent} classes, as these handle input directly from a user in Max (through the \texttt{somax.server} and \texttt{somax.player} objects), who we cannot assume is necessarily passing the correct information, and who will need proper error messages posted in the Max console, rather than cryptic Python exceptions, when the wrong type of information is sent. Therefore, the \texttt{SomaxServer} and \texttt{OscAgent} have very strict type and bounds checking.
+
+A number of functions in the \texttt{OscAgent} also makes frequent use of the fact that introspection is possible in Python. As many components of the Somax architecture are modular (\texttt{AbstractScaleAction}, \texttt{AbstractClassifier}, \texttt{AbstractActivityPattern}, etc.), Any class whose base class is inheriting from the \texttt{StringParsed} class can be parsed directly from a string corresponding to the class' name, assuming that they are located in the same module. For example
+
+\begin{lstlisting}
+>>> AbstractScaleAction.from_string("nextstatescaleaction")
+<somax.runtime.scale_actions.NextStateScaleAction object at 0x..>
+\end{lstlisting}
+This means that new classes can be added in the same module and be fully accessible through the OSC protocol without changing any part of the code related to the parsing. The only exception to this strategy is the \texttt{FeatureValue} class, where new features need to be added to the \texttt{somax/features/\_\_init\_\_.py}, as the classes to parse are spread over several modules.
+
+Finally, it's worth noting that the \texttt{SomaxServer} is actually split in two classes: \texttt{Somax} and \texttt{SomaxServer}, and similarly the \texttt{OscAgent} in \texttt{Agent} and \texttt{OscAgent}. The intention with this distinction was to separate the parsing/OSC handling into a separate class, so that the \texttt{Agent} and \texttt{Somax} classes could be used directly in Python. The current separation is however not used and largely irrelevant — a proper and clean separation of the two can instead be found in the (abandoned) \texttt{dev-merge-osc} branch.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Parametric \& Parameter}\label{ssec:2-parameters}
+The final aspect of the I/O and parsing is the \texttt{Parametric} class. Since the configuration of the \texttt{Player} can change dynamically by adding/removing \texttt{Atom}s, \texttt{ScaleAction}s, etc. it's necessary to be able to address parameters of said classes dynamically so that they can be changed from the front-end. This is handled by the \texttt{Parametric} and \texttt{Parameter} classes. The relationship between the two can be seen as a tree where \texttt{Parametric} are the branch nodes and \texttt{Parameter} are the leaf nodes, where the value of a \texttt{Parameter} can be set by addressing its position in the tree. For example, given a \texttt{Parameter} \texttt{ngram\_length} of the \texttt{NGramMemorySpace} (which inherits from the \texttt{Parametric} class, where the latter is owned by an \texttt{Atom} of the player (also inheriting from the \texttt{Parametric} with the name \texttt{melodic}, the value of this parameter can be set by calling the \texttt{Player}'s \texttt{set\_param} function:
+\begin{lstlisting}
+/agent1 set_param melodic::_memory_space::_ngram_size 3
+\end{lstlisting}
+Note that the parameter tree needs to be re-computed when any \texttt{Parametric} (for example a \texttt{ScaleAction}) is added or removed. This is done through the \texttt{Parametric.parse\_parameters} function.
 
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% THE CORPUS
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \section{The Corpus}\label{ssec:2-corpus}
 TODO: how to implement new features
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% SCHEDULING
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 \section{Scheduling}\label{ssec:2-scheduling}
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% THE PLAYER
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 \section{The Player}\label{ssec:2-player}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% COMPILATION
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \section{Compilation}\label{ssec:2-compilation}
 

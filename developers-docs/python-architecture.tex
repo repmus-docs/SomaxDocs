@@ -87,7 +87,7 @@ Also note that an improved version of the \texttt{AsyncioOscObject} exists in th
 \subsection{SomaxServer \& OscAgent}\label{ssec:2-server-agent}
 The central class of the Somax library is the \texttt{OscAgent}, which, as mentioned above, corresponds to the \texttt{somax.player} object. The \texttt{OscAgent} is initialized through the \texttt{SomaxServer}, but once initialized, the \texttt{somax.player} and \texttt{OscAgent} communicate directly through their own set of OSC ports. This class is responsible for handling all input/output to the \texttt{Player} (such as influences, output requests, setting parameters, etc.), as well as the co-ordinating time management between the \texttt{SomaxServer} and the \texttt{Player}, which is managed through the \texttt{SchedulingHandler}.
 
-The \texttt{OscAgent} inherits from \texttt{multiprocessing.Process} class, which essentially is a way to bypass the global interpreter lock (GIL) in Python. Since the operations of the \texttt{OscAgent} (or more specifically the \texttt{Player}, which is owned by the \texttt{OscAgent}). Communication between the \texttt{OscAgent} and \texttt{SomaxServer} is handled through a \texttt{multiprocessing.Queue}, essentially a two-way pipe which passes \texttt{ProcessMessage}s between the two objects. Almost all of the communication are messages related to time and scheduling and will be described in section \ref{ssec:2-scheduling}\footnote{The only exceptions are the \texttt{PlayControl.CLEAR} and \texttt{PlayControl.TERMINATE} messages of the \texttt{ControlMessage} class, which calls \texttt{OscAgent.clear()} and \texttt{OscAgent.terminate()} functions accordingly.}.
+The \texttt{OscAgent} inherits from \texttt{multiprocessing.Process} class, which essentially is a way to bypass the global interpreter lock (GIL) in Python by running each \texttt{OscAgent} in its own subprocess rather than its own thread. Communication between the \texttt{OscAgent} and \texttt{SomaxServer} is handled through a \texttt{multiprocessing.Queue}, essentially a two-way pipe which passes \texttt{ProcessMessage}s between the two objects. Almost all of the communication are messages related to time and scheduling and will be described in section \ref{ssec:2-scheduling}\footnote{The only exceptions are the \texttt{PlayControl.CLEAR} and \texttt{PlayControl.TERMINATE} messages of the \texttt{ControlMessage} class, which calls \texttt{OscAgent.clear()} and \texttt{OscAgent.terminate()} functions accordingly.}.
 
 The \texttt{SomaxServer} owns the \texttt{OscAgent}s and is responsible for joining their processes once finished (e.g. when the server is shut down or if the \texttt{somax.player} is deleted in Max). In addition, the \texttt{SomaxServer} is also managing the \texttt{CorpusBuilder}s, which will be launched as separate \texttt{multiprocessing.Process}es when the user is building a corpus (in order to not block the \texttt{Transport} while building corpora). 
 
@@ -138,6 +138,88 @@ TODO: how to implement new features
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \section{Scheduling}\label{ssec:2-scheduling}
+One of the most important responsibilities of the Python back-end is to manage time and scheduling. The current time, represented by a \texttt{Time} object, is managed by the \texttt{Transport} in the \texttt{SomaxServer}, and is synchronized between all \texttt{OscAgent}s. The \texttt{Transport} is polled each millisecond in the \texttt{SomaxServer.callback()} function to update the \texttt{Time}, and then sends it to each existing \texttt{OscAgent} through its associated \texttt{multiprocessing.Queue} (see section \ref{ssec:2-server-agent}). The \texttt{OscAgent} has its own \texttt{\_main\_loop} function where it receives these messages and updates time accordingly through its \texttt{Scheduler}. The current time is through the \texttt{Time} object represented both in ticks (where 1.0 ticks corresponds to one quarter note) and seconds, and has an associated tempo.
+
+The \texttt{Transport} and \texttt{Scheduler} manage two different responsibilities: the \texttt{Transport} is the internal clock of the system, which manages how much time has elapsed since the previous callback, while the \texttt{Scheduler} is responsible for when each event should happen.
+
+The \texttt{OscAgent} does not communicate directly with the \texttt{Scheduler}; the \texttt{OscAgent} has a \texttt{SchedulingHandler}, which has a \texttt{Scheduler}. The \texttt{SchedulingHandler} is an abstract base class with a number of different implementations, where the different implementations roughly corresponding to the \texttt{mode} attribute in the \texttt{somax.player} object, and is described in section \ref{ssec:2-scheduling-handler}.
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{ScheduledEvent}\label{ssec:2-scheduled-event}
+The \texttt{Scheduler} only accepts a single type of message: the abstract \texttt{ScheduledEvent} class, which has a \texttt{trigger\_time}, which determines when the event should be output by the \texttt{Scheduler}. There are four main types of \texttt{ScheduledEvent}s:
+
+\begin{description}
+	\item[\texttt{TriggerEvent}] When output, triggers output by the \texttt{Player} through the \\\texttt{OscAgent.\_trigger\_output} function.
+	\item[\texttt{RendererEvent}] Contains OSC messages that will be sent directly to Max to trigger rendering of some sort (example subclasses are \texttt{MidiNoteEvent}, \texttt{AudioEvent}, \texttt{AudioOffEvent}, etc.)
+	\item[\texttt{TempoEvent}] Contains information about the last played \texttt{CorpusEvent}s annotated tempo. If the \texttt{OscAgent} is set as the \texttt{SomaxServer}'As tempo source, it will send this message through the \texttt{multiprocessing.Queue} back to the server to set its tempo. If not, it will simply be ignored
+	\item[\texttt{ContinueEvent}] When output, triggers output by the \texttt{Player} through the \\ \texttt{OscAgent.\_continue\_output} function. The difference between \texttt{TriggerEvent} and \texttt{ContinueEvent} is described in section \ref{ssec:2-timeout}.
+\end{description}
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{The SchedulingHandler}\label{ssec:2-scheduling-handler}
+The \texttt{SchedulingHandler}'s main role is to receive \texttt{CorpusEvent}s, convert them into the appropriate \texttt{ScheduledEvent}s and schedule them accordingly through its internal \texttt{Scheduler}, which is handled by the \texttt{SchedulingHandler.add\_corpus\_event} function. When triggering output from a \texttt{somax.player} object in Max (e.g. through a \texttt{bang} or a \texttt{influence onset} message, which both call the \texttt{OscAgent.bang} function), this does not directly trigger output but rather schedules a \texttt{TriggerEvent} through the \texttt{SchedulingHandler.add\_trigger\_event} function. There are currently three different \texttt{SchedulingHandler}s with three different behaviours for \texttt{add\_corpus\_event} and \texttt{add\_trigger\_event}:
+
+\begin{description}
+	\item[AutomaticSchedulingHandler] Plays continuously by immediately scheduling a new \texttt{TriggerEvent} at the end of each \texttt{CorpusEvent} received. Any manual triggers called through the \texttt{add\_trigger\_event} will be ignored. This class corresponds to \texttt{@mode continuous} in the Max front-end.
+	\item[ManualSchedulingHandler] Schedules a single \texttt{TriggerEvent} immediately when the \texttt{add\_trigger\_event} is called, thereby interrupting any currently rendered events. Does not reschedule any \texttt{TriggerEvent}s on \texttt{add\_corpus\_event}. This class corresponds to \texttt{@mode reactive} with \texttt{@cut 1} in the Max front-end.
+	\item[IndirectSchedulingHandler] Schedules a single \texttt{TriggerEvent} immediately when the \texttt{add\_trigger\_event} is called, unless it is in the middle of rendering an event, in which case it will schedule the trigger at the end of the current event. This class corresponds to \texttt{@mode reactive} with \texttt{@cut 0} in the Max front-end.
+\end{description}
+Note that while neither the \texttt{ManualSchedulingHandler} nor the \\ \texttt{IndirectSchedulingHandler} will ever reschedule any triggers, they may still continue playing further events due to the \texttt{ContinueEvent}. These behaviours are explained in section \ref{ssec:2-timeout}.
+
+The process of converting an \texttt{CorpusEvent} into a set of \texttt{RendererEvent}s is handled by the \texttt{AudioStateHandler} (for an \texttt{AudioCorpusEvent}) and the \texttt{MidiStateHandler} (for a \texttt{MidiCorpusEvent}) classes. These classes are responsible for behaviours strictly related to the rendering, for example whether an audio renderer needs to jump in the buffer or may continue playing linearly, or in the MIDI case, to handle note offs, notes sustained over several slices, etc.
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Synchronization \& Time Stretch}\label{ssec:2-time-stretch}
+
+Due to the separation between time management (\texttt{Transport}) and scheduling \\ (\texttt{Scheduler}), time stretch is fairly simple to achieve, we can just apply a time stretch factor to the time received from the \texttt{Transport} and the scheduling will automatically adapt to the new, stretched tempo, assuming that we output the same information to the renderer. A naive approach would be
+\begin{align}
+	t_\text{stretch}[n] = t_\text{transport}[n] \cdot \gamma
+\end{align}
+where $n \in \mathbb Z_+$ indicate the current step in the callback, $t_\text{stretch}[n] \in \mathbb R_+$ the stretched time at step $n$, $t_\text{transport}[n] \in \mathbb R_+$ the \texttt{Transport}'s time at step $n$ and $\gamma \in \mathbb R_+$ is the time stretch factor (i.e. 1.0 means no time stretch, 0.5 half the speed, 2.0 double the speed, etc.). Since the user may change $\gamma$ over time, this would however produce discontinuities in time. To avoid this, we'll calculate the discrete integral over $t_\text{transport}$, i.e.
+\begin{align}\label{eq:2-timestretch}
+	t_\text{stretch}[n] = 	t_\text{stretch}[n-1]  + \left(t_\text{transport}[n] - t_\text{transport}[n-1]\right)\cdot \gamma[n]
+\end{align}
+where $\gamma[n]$ now indicates the current time stretch value set by the user at step $n$. 
+
+All of this is handled in the \texttt{SchedulingHandler}, and the time stretch factor can be set with the \texttt{SchedulingHandler.set\_time\_stretch\_factor} function. There's however another way of achieving time stretch: by changing the server's (or more specifically, the \texttt{Transport}'s) tempo.
+
+There are currently two modes for scheduling in Somax (super class \texttt{SchedulingMode}): 
+\begin{description}
+	\item[\texttt{RelativeScheduling}] events are scheduled in ticks,
+	\item[\texttt{AbsoluteScheduling}] events are scheduled in seconds. 
+\end{description}
+In relative time, which is only used by MIDI corpora, changes to the server's tempo will naturally result in changes to the playback speed, as one tick corresponds to a quarter note, the duration (in seconds) of a tick changes with the tempo. In absolute time, changes to the tempo will not change the playback speed (a second is still a second). Audio corpora only have absolute time, but may still adapt to the tempo of the server by computing the difference between its annotated tempo and the server's tempo, and adjusting the time stretch factor accordingly. The choice between the different \texttt{SchedulingMode}s is not directly controlled by the user, but a result of whether the user chooses to synchronize to the server's tempo or to use a manual time stretch factor, as controlled by the \texttt{OscAgent.set\_synchronize\_to\_global\_tempo} function. In summary, we have four different cases:
+
+\begin{description}
+	\item[Audio corpus, synchronize=False] \texttt{AbsoluteScheduling} according to equation \ref{eq:2-timestretch} with $\gamma$ directly controlled by the user
+	\item[Audio corpus, synchronize=True] \texttt{AbsoluteScheduling} according to equation \ref{eq:2-timestretch} with $\gamma$ calculated as the quotient between the server's tempo and the last rendered \texttt{AudioCorpusEvent}
+	\item[MIDI corpus, synchronize=False] \texttt{AbsoluteScheduling} according to equation \ref{eq:2-timestretch} with $\gamma$ directly controlled by the user
+	\item[MIDI corpus, synchronize=True] \texttt{RelativeScheduling} without any time stretch factor.
+\end{description}
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Timeout \& Continue}\label{ssec:2-timeout}
+
+
+
+
+
+
+
+
+
+
+
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% THE PLAYER

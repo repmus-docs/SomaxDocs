@@ -123,7 +123,7 @@ The final aspect of the I/O and parsing is the \texttt{Parametric} class. Since 
 \begin{lstlisting}
 /agent1 set_param melodic::_memory_space::_ngram_size 3
 \end{lstlisting}
-Note that the parameter tree needs to be re-computed when any \texttt{Parametric} (for example a \texttt{ScaleAction}) is added or removed. This is done through the \texttt{Parametric.parse\_parameters} function.
+Note that the parameter tree needs to be re-computed when any \texttt{Parametric} (for example a \texttt{ScaleAction}) is added or removed. This is done through the \\ \texttt{Parametric.parse\_parameters} function.
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -131,7 +131,27 @@ Note that the parameter tree needs to be re-computed when any \texttt{Parametric
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \section{The Corpus}\label{ssec:2-corpus}
-TODO: how to implement new features
+The \texttt{Corpus} class is the material from which the \texttt{Player} generates all its content. A corpus is constructed by passing an audio file or one or multiple MIDI files to the \texttt{CorpusBuilder}'s \texttt{build} function, which will segment the file and attempt to analyze its with respect to all applicable \texttt{CorpusFeature}s. If an analysis fails (for example if the \texttt{CorpusFeature} only is designed for MIDI), it will simply ignore the given feature and move on to the next one. Understanding the procedure of building the \texttt{Corpus} shouldn't pose any problem for a developer with some experience in Python. It's also possible to build a \texttt{Corpus} by providing your own analysis to the \texttt{ManualCorpusBuilder}, which will read the analysis from a text file, see comments in the code for more info.
+
+The \texttt{CorpusBuilder.build} will return an \texttt{AudioCorpus} or \texttt{MidiCorpus} depending on the type provided, which, when built through the \texttt{SomaxServer}, will be exported as a file. An \texttt{AudioCorpus} is exported as a \texttt{.pickle} file, while a \texttt{MidiCorpus} is exported as a gzip'ed json. Note that exporting a pickle is a far superior approach in terms of performance and file size, and the only reason why the \texttt{MidiCorpus} isn't using this format is because it hasn't been updated from its legacy json format yet.
+
+The \texttt{Corpus} itself can be either a \texttt{AudioCorpus}, consisting of a list of \texttt{AudioCorpusEvent}s, or a \texttt{MidiCorpus}, consisting of a list of \texttt{MidiCorpusEvent}s, which in turn contains a list of \texttt{Notes}. In the \texttt{AudioCorpus}, each even corresponds to a segment of the audio as determined by the onset segmentation as computed by the \texttt{AudioCorpusBuilder}. In the \texttt{MidiCorpus}, each event corresponds to all the MIDI data between two note ons\footnote{The MIDI segmentation process is described in \cite{somaxtheory2021}.}, where the \texttt{Note.\_onset} and \texttt{Note.\_duration} attributes are stored relative to their parent \texttt{MidiCorpusEvent} (in other words, a note can have an onset of -2.5, meaning that it starts 2.5 quarter notes before the start of the given event, and therefore is held at the start of the given event). A number of convenient functions exist in the \texttt{MidiCorpusEvent} to get all the notes that starts/ends before/at/within the given event.
+
+\subsection{Features}\label{ssec:2-features}
+Each \texttt{CorpusEvent} has a dictionary of \texttt{FeatureValue}s (stored by type, e.g. \\\texttt{my\_corpus.get\_feature(MeanChroma)} will return the value of its \texttt{MeanChroma}) that was analyzed when the \texttt{Corpus} was built. There's currently a separation between \texttt{CorpusValue} and \texttt{CorpusFeature}, where the former only contains the actual value while the latter also includes the procedure to compute it from a list of \texttt{CorpusEvent}s (\texttt{CorpusFeature.analyze}).\footnote{This separation was made to avoid a circular dependency between the \texttt{CorpusEvent} and the \texttt{CorpusFeature}, but a better solution to the problem is available in the \texttt{dev-merge-osc} branch.}
+
+The \texttt{CorpusBuilder} relies on the procedure described in section \ref{ssec:2-parsing-introspective} for parsing all implemented \texttt{CorpusFeature}s for analysis. As the \texttt{CorpusFeature}s are split into separate modules, it's however necessary to import them in the \texttt{features/\_\_init\_\_.py} module to expose them to the automated parsing. So, in order to implement new \texttt{Features}:
+
+\begin{itemize}
+	\item Implement the feature by inheriting from \texttt{CorpusFeature} (make sure to also inherit from \texttt{RuntimeFeature} to make it runtime parsable as an \texttt{FeatureInfluence}, if applicable) and implement its abstract methods
+	\item If the feature is MIDI only or audio only, make sure to raise a \texttt{FeatureError} if it receives the wrong type of data. In this case, it will simply be ignored
+	\item Import the feature in \texttt{features/\_\_init\_\_.py}
+\end{itemize}
+The next time a \texttt{CorpusBuilder} builds a new \texttt{Corpus}, the new feature will be available through \texttt{Corpus.get\_feature}.
+
+\subsection{ContentAware \& Eligibility}\label{ssec:2-features}
+In some cases, a feature may only be defined for a certain type of corpus. For example, the \texttt{VerticalDensity} feature, which corresponds to the number of MIDI notes in the given event, is undefined for an audio corpus. To still be able to use these types of features in the \texttt{Player} without crashing if a corpus of the wrong type is loaded, the \texttt{ContentAware} interface was implemented. Any class inheriting from the \texttt{ContentAware} interface will simply be bypassed when a corpus is loaded if \texttt{ContentAware.\_is\_eligible\_for} returns \texttt{False}. In practice, this is only used in a few experimental classes of the \texttt{Player}, such as \texttt{VerticalDensityScaleAction}, \texttt{OctaveBandsScaleAction}, etc. Refer to these for more info.
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% SCHEDULING
@@ -201,19 +221,32 @@ In relative time, which is only used by MIDI corpora, changes to the server's te
 	\item[Audio corpus, synchronize=False] \texttt{AbsoluteScheduling} according to equation \ref{eq:2-timestretch} with $\gamma$ directly controlled by the user
 	\item[Audio corpus, synchronize=True] \texttt{AbsoluteScheduling} according to equation \ref{eq:2-timestretch} with $\gamma$ calculated as the quotient between the server's tempo and the last rendered \texttt{AudioCorpusEvent}
 	\item[MIDI corpus, synchronize=False] \texttt{AbsoluteScheduling} according to equation \ref{eq:2-timestretch} with $\gamma$ directly controlled by the user
-	\item[MIDI corpus, synchronize=True] \texttt{RelativeScheduling} without any time stretch factor.
+	\item[MIDI corpus, synchronize=True] \texttt{RelativeScheduling} without any time stretch factor, directly adapting to the server's tempo.
 \end{description}
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\subsection{Timeout \& Continue}\label{ssec:2-timeout}
+\subsection{Timeout \& ContinueEvent}\label{ssec:2-timeout}
 
+One of the cornerstone of the Somax development process has been its modularity and encapsulation of functionality, meaning that in most cases, a certain behaviour or functionality, as controlled by the user, is limited to a single class and can therefore easily be understood by reading the code in that particular class. This approach also makes it simple to disable and/or modify the given behaviour, as the code that manages said behaviour self-contained and independent of other modules. 
 
+There's however one exception to this development principle, and that is the concept which is called "timeout". The basis for this idea is simple: when we're in a mode where output is user-triggered (i.e. when using the \texttt{ManualSchedulingHandler} or the \texttt{IndirectSchedulingHandler}), we don't want the output to immediately stop once it has finished playing an event, but we want it to continue for some time after. 
 
+In earlier versions of Somax ($\le$2.4.0), this behaviour was achieved (for audio corpora) by simply letting the renderer continue playing the buffer linearly for $N$ seconds after the last triggered event. While this solution was extremely simple, it came with a number of downsides: (i) there was no way to guarantee that the renderer wouldn't stop in the middle of an event, (ii) the user interface would not be able to indicate the currently played event during the timeout period\footnote{A few notes on the syntax used here: By "timeout", we're referring to the point in time when the player stops, after receiving no new triggers. The "timeout period" refers to the time after the end of the triggered event during which the player continuous to play one or multiple events that are not directly triggered by the user. In other words, the sequence is the following: trigger(user)$\rightarrow$event$\rightarrow$timeout period$\rightarrow$timeout.} and (iii) playing linearly is in many cases unsatisfactory in terms of creativity.
 
+For this reason, a new timeout behaviour was conceived to solve the issues above, i.e. (i) timeout should never stop in the middle of an event, (ii) the user interface should indicate events played during the timeout phase and (iii) it should be possible to play events in a non-linear manner (i.e. by jumping/recombining) during the timeout phase. This was implemented by adding a separate \texttt{ScheduledEvent} called \texttt{ContinueEvent}, which triggers the \texttt{OscAgent.\_continue\_output} function (rather than the normal \texttt{OscAgent.\_trigger\_output}, which is described in section \ref{ssec:2-player}). 
 
+Without prior knowledge, deciphering the exact control flow of the timeout behaviour throughout the many classes it applies to may be difficult, but the following summary should greatly simplify the procedure:
 
+\begin{itemize}
+	\item Timeout only applies when using \texttt{ManualSchedulingHandler} or \texttt{IndirectSchedulingHandler} 
+	\item When \texttt{OscAgent.recombine=True}, \texttt{ContinueEvent}s will trigger \texttt{Player.new\_event}
+	\item When \texttt{OscAgent.recombine=False}, \texttt{ContinueEvent}s will trigger \texttt{Player.step}
+	\item During the timeout period, the \texttt{Player} will bypass the \texttt{sparse} option of the \texttt{FallbackPeakSelector} due to the \texttt{enforce\_output} parameter of the \texttt{Player.new\_event} function
+	\item When switching to a \texttt{AutomaticSchedulingHandler}, any \texttt{TriggerEvent} will be converted to a \texttt{ContinueEvent} and vice versa
+	\item When an event is triggered by the user, the timeout period starts over
+\end{itemize}
 
 
 

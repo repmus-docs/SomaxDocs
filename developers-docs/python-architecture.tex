@@ -309,7 +309,7 @@ The PyInstaller bundle is created by running \texttt{make pyinstaller} from the 
 Due to an issue with the \texttt{sklearn} package (which is a dependency of \texttt{librosa}) on High Sierra, we will have to re-sign the bundle after building it. This is done by running \texttt{make codesignature} (on any version of MacOS / any architecture). If, in the future, the minimum MacOS version supported should change to Mojave or later, this step can be ignored.
 
 \subsubsection{Step 2: Notarizing the Bundle}
-On a machine running MacOS Big Sur or later (on any architecture), run \texttt{make notarize} to notarize the built application. For this step to work, you will need to register your app-specific password\footnote{For more info on generating an app-specific password, refer to the internal document "Développement Apple à l’Ircam".} under the profile name \texttt{repmus} (or adapt the \textt{Makefile} to match your registered app-specific password) using \texttt{xcrun notarytool store-credentials}.
+On a machine running MacOS Big Sur or later (on any architecture), run \texttt{make notarize} to notarize the built application. For this step to work, you will need to register your app-specific password\footnote{For more info on generating an app-specific password, refer to the internal document "Développement Apple à l’Ircam".} under the profile name \texttt{repmus} (or adapt the \texttt{Makefile} to match your registered app-specific password) using \texttt{xcrun notarytool store-credentials}.
 
 \subsubsection{Step 3: Creating the Max Package}
 The final step in the procedure is to create the Max package, containing the signed and notarized bundle. Normally when we launch the server from Max (e.g. through the \texttt{Start Server} button of the \texttt{somax.server.app} or the \texttt{initialize} message to the \texttt{somax.server} from the GitHub repository, this will launch the \texttt{launch\_local} script in the \texttt{max/somax/misc} folder, which runs the \texttt{somax\_server.py} through the local Python installation. In the Max package, we want this to point to the packaged \texttt{somax\_server.app} instead. To do this, open the \texttt{somax.interpreter.maxpat} and change the \texttt{loadmess 0} into \texttt{loadmess 1}.
@@ -328,7 +328,7 @@ Also note that should any of the steps fail, there's are two commands to clean u
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \subsection{PyPI Package}\label{ssec:2-pypi-package}
-The \texttt{Somax2/python/somax} folder is structured as a PyPI package, but recent versions of Somax have not been published to PyPI due to lack of interest in the Python code. Should there be an interest in this again, it's possible to create new distributions through the normal procedure of PyPI packages, e.g.
+The \texttt{Somax2/python/somax} folder is structured as a PyPI package, but recent versions of Somax have not been published to PyPI due to lack of interest in the Python code. Should this change in the future, it's possible to create new distributions through the normal procedure of PyPI packaging, e.g. (after incrementing version, etc.):
 \begin{lstlisting}
 python3 setup.py sdist bdist_wheel
 twine check dist/*

@@ -1,22 +1,118 @@
 \chapter{The Max Architecture}\label{sec:3-max-architecture}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% OVERVIEW
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\section{Overview}\label{ssec:3-overview}
+The Somax Max package is responsible for two things: It serves as the front-end/API for the end user and it's responsible for handling every aspect of real-time signal processing. Everything else is handled by the Python code base. 
+
+At the core of the Max package are the \texttt{somax.server} and \texttt{somax.player} objects, both which are essentially wrappers around one pair of \texttt{udpsend}-\texttt{updreceive} each, through which they manage all communication with their corresponding \texttt{SomaxServer} and \texttt{OscAgent} Python objects respectively. These two objects have been designed with a single goal in mind: to behave as if they were native Max objects.
+
+One explicit requirement for the entire project has been that as much of the code as possible should be written only in Python and Max. Since Somax is a research project, it was considered likely that future members and developers on the team mainly would have experience with Python and Max, and that it for this reason could  be difficult to maintain the code in the future if a significant portion of it was written in C/C++.
+
+For this reason, the entire Max part of the Somax code base has been written as abstractions rather than externals. While this does increase the transparency for Max developers, it comes with a number of downsides that all make the above mentioned goal more difficult, that will be discussed thoroughly in this chapter. 
+
+This chapter assumes that the reader has good knowledge of Max and will not explain basic aspects of Max that it frequently relies on (e.g. \texttt{pattr}, \texttt{bpatchers}, the distinction between \texttt{patchers} and \texttt{abstractions}, the Max threading model, etc.), but rather focus on the code base itself in order to give an overview
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{The Max Package's Structure}\label{ssec:3-structure}
+The Somax package consists of more than 50 abstractions, but most of them are used internally in a few core object, rather than being relevant for the end user. In this chapter, we will only focus on these core objects, as most of the abstractions can easily be understood from their corresponding contexts.
+
+\noindent The base objects of the package are: 
+
+\begin{description}
+	\item[\texttt{somax.server}] which handles the communication with the Python server
+	\item[\texttt{somax.player}] which handles the communication with a particular \texttt{OscAgent} on the server
+	\item[\texttt{somax.audiocorpusbuilder}] which is the front-end to the \texttt{CorpusBuilder} when used to create a \texttt{Corpus} from an audio file
+	\item[\texttt{somax.midicorpusbuilder}] which is the front-end to the \texttt{CorpusBuilder} when used to create a \texttt{Corpus} from a MIDI file
+	\item[\texttt{somax.audioinfluencer}] which is used to analyze a real-time signal in the same manner as the \texttt{Corpus} is analyzed when built, segmenting the signal into discrete, symbolic data that are used to influence the \texttt{Player}
+	\item[\texttt{somax.midiinfluencer}] same as above but for real-time MIDI streams
+	\item[\texttt{somax.audiorenderer}] which converts the symbolic messages received from the \texttt{OscAgent} into real-time audio data when using an audio \texttt{Corpus}
+	\item[\texttt{somax.midirenderer}] same as above for a for an \texttt{OscAgent} with a MIDI \texttt{Corpus}.
+\end{description}
+
+\noindent These objects are intended for any user who wishes to use any part of the Somax library in a modular manner. Two further variations exist for a number of those objects. \texttt{somax.<object>.ui} and \texttt{somax.<object>.app}. The former is for each object just a condensed UI suitable for using in a bpatcher, but in terms of messages and functionality identical to the core objects. The latter set of objects are application-style bpatcher objects designed for users with little or no experience in Max, where all of the functionality, including input and output, is encapsulated, with little room for the user to customize the design/behaviour of the object. The \texttt{.ui} objects that exist are \texttt{somax.player.ui}, \texttt{somax.audioinfluencer.ui} and \texttt{somax.midiinfluencer.ui}. The \texttt{.app} objects that exist are \texttt{somax.player.app}, \texttt{somax.server.app}, \texttt{somax.audioinfluencer.app} and \texttt{somax.midiinfluencer.app}. The latter set of objects will be further described in section \ref{ssec:3-app-objects}, while all other sections mainly will focus on the base objects (i.e. the objects with neither an \texttt{.ui} nor \texttt{.app} extension).
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Design Guidelines}\label{ssec:3-global-state}
+To achieve the goal mentioned above, i.e. that all base objects should behave as if they were native Max objects, or more specifically as if they were well-designed, compiled externals, the following set of guidelines were developed:
+
+\subsubsection{Clear Separation Between Attributes and Messages}
+An attribute of an object is a setting or property that tells the object how to do its job. While this is a fundamental principle of modern Max objects, it's quite difficult to achieve for objects whose state actually is stored on a remote server, that may or may not have been started when the object is created. This will be discussed in section \ref{ssec:3-osc-issues}.
+
+In addition, passing attributes to abstractions comes with a number of issues in Max, which will be discussed in section \ref{ssec:3-abstractions}
+
+\subsubsection{Errors Should Be Explicit}
+Passing incorrect messages, values of the wrong type or attributes that don't exist to an object should always produce an explicit error (typically printed to the Max console), and if the message is an important part of a control flow that the user may rely on, the object should output a message or error code to indicating the error, so that the user can react accordingly. For example, if the \texttt{somax.audiocorpusbuilder} fails to build a corpus, a message indicating what went wrong will be printed in the Max console as well as the error code being output on the first outlet of the \texttt{somax.audiocorpusbuilder}, so that the user is able to react programmatically when this happens.
+
+
+\subsubsection{All Attributes Should Be Exposed to Pattr}
+Any attribute that the user may want to control should be exposed to the Max \texttt{pattr} system in order to allow the user to store, load and interpolate between states and configurations of the different objects.
+
+\subsubsection{Avoid Global State}
+The usage of global state (such as global \texttt{value}, \texttt{send} and \texttt{receive}, \texttt{dict} and \texttt{coll}, etc.) should be avoided at all costs and only used when absolutely necessary. By global, we mean state that is shared outside of a given abstraction, i.e. any send/receive/dict/etc. without \texttt{\#0} in its name. The reason for this is simple: global state makes the code so much more difficult to read. 
+
+With that said, there are still a number of cases where global state is necessary in the Somax library. These will be discussed in section \ref{ssec:3-global-state}.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{OSC Communication Issues}\label{ssec:3-osc-issues}
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Abstraction Issues}\label{ssec:3-abstractions}
+
+
+
+\subsection{Global State}\label{ssec:3-global-state}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
 \todo{OVERVIEW here}
 \todo{explicit requirement: abstractions only-ish for future developer}
 \todo{ROSETTA}
 \todo{OSC PORT ALLOCATION}
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% SERVER
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \section{The Server Object}\label{ssec:3-server}
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% PLAYER
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
 \section{The Player Object}\label{ssec:3-player}
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% PERIPHERALS
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
 \section{Peripherals}\label{ssec:3-peripherals}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \subsection{Influencers}\label{ssec:3-influencers}
 - why: cannot handle real-time audio in python
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 \subsection{Renderers}\label{ssec:3-renderers}
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 \subsection{Corpus Builders}\label{ssec:3-corpusbuilders}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \section{App Objects}\label{ssec:3-app-objects}
 \todo{source/target}

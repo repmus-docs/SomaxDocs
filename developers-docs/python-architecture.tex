@@ -149,7 +149,11 @@ The \texttt{CorpusBuilder} relies on the procedure described in section \ref{sse
 \end{itemize}
 The next time a \texttt{CorpusBuilder} builds a new \texttt{Corpus}, the new feature will be available through \texttt{Corpus.get\_feature}.
 
-\subsection{ContentAware \& Eligibility}\label{ssec:2-features}
+Note that when new features are added and the Somax library is extended with new functionalities relying on these new features, this might mean that corpora built in earlier versions of Somax may no longer work correctly. When loading a \texttt{Corpus}, from a file, the \texttt{Corpus.from\_json} function uses the utility class \texttt{VersionTools} to check the version of the \texttt{Corpus} loaded corpus, and if it doesn't match the current version, it will print an explicit error. So if a new feature is added with the intention of being a mandatory part of any \texttt{Corpus}, the corpus version number, stored in the field \texttt{\_\_version\_corpus\_\_} in \texttt{somax/\_\_init\_\_.py} should be incremented. 
+
+If the new features is optional, an alternative is to use the \texttt{ContentAware} class (described in section \ref{ssec:2-content-aware}) to disable parts of the code that rely on the given feature.
+
+\subsection{ContentAware \& Eligibility}\label{ssec:2-content-aware}
 In some cases, a feature may only be defined for a certain type of corpus. For example, the \texttt{VerticalDensity} feature, which corresponds to the number of MIDI notes in the given event, is undefined for an audio corpus. To still be able to use these types of features in the \texttt{Player} without crashing if a corpus of the wrong type is loaded, the \texttt{ContentAware} interface was implemented. Any class inheriting from the \texttt{ContentAware} interface will simply be bypassed when a corpus is loaded if \texttt{ContentAware.\_is\_eligible\_for} returns \texttt{False}. In practice, this is only used in a few experimental classes of the \texttt{Player}, such as \texttt{VerticalDensityScaleAction}, \texttt{OctaveBandsScaleAction}, etc. Refer to these for more info.
 
 
@@ -265,4 +269,71 @@ Without prior knowledge, deciphering the exact control flow of the timeout behav
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \section{Compilation}\label{ssec:2-compilation}
+
+In order to facilitate the installation process for Max-oriented end users, the Python code is with each release "compiled" into a standalone application so that the user won't have to install Python to run Somax. This procedure is done through PyInstaller \cite{pyinstaller2023}, which packages the Somax code along with the Python interpreter and all necessary dependencies into a bundle. In other words, the code is not compiled, but rather packaged into a self-contained bundle.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Why PyInstaller?}\label{ssec:2-why-pyinstaller}
+There are a number of libraries for packaging (or transpiling) Python code into standalone applications or libraries, for example Py2app, cx\_freeze, PyOxidizer and Nuitka, to name a few. The reason why we choose to use PyInstaller was simply because at the point in time when the Somax packaging procedure was conceived, PyInstaller was the only library that supported all of the following: (1) MacOS notarization (2) the Python multiprocessing library, (3) backwards compatibility with MacOS 10.13 High Sierra (which at this point was decided to be the oldest version Somax should support). 
+
+It's however possible that this has changed over the past years, and that PyInstaller may no longer be the only viable nor the best option. The procedure outlined in this section is merely one way to package the Somax library into a standalone application that is known to work, but the reader is free to use any other procedure.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Procedure \& Requirements}\label{ssec:2-pyinstaller-procedure}
+
+PyInstaller does not support cross-compilation, neither in terms of versions of MacOS nor Windows.\footnote{Note that only the procedure for building a MacOS .app bundle is outlined here. There's currently no official Windows release of Somax, but it is possible to run Somax on Windows with some caveats. See \url{https://github.com/DYCI2/Somax2/wiki/Somax2-on-Windows} for more information.} One of the curiosities of PyInstaller is that in terms of (major) MacOS versions, it's forward compatible but not backward compatible. It's therefore necessary to package the bundle on the oldest version that should be supported. In our case, this is currently MacOS High Sierra (10.13), but this should probably be revised in the future. The Somax bundle when packaged on High Sierra has proven to work on High Sierra (10.13), Mojave (10.14), Catalina (10.15), Big Sur (11), Monterey (12) and Ventura (13). 
+
+High Sierra does however not support notarization, as this feature was added in Catalina, so the bundle needs to be notarized on a machine running MacOS Catalina or later (recommended Big Sur or later due to significantly easier to use \texttt{notarytool} that was added in Big Sur)
+
+The same issues with backward compatibility applies to architectures: PyInstaller bundles created on \texttt{x86\_64} (Intel) will run on \texttt{arm64} (M1, M2, ...) processors, but not the other way around. 
+
+In other words, the procedure for building can be summarized as follows: (1) package the bundle using PyInstaller on an Intel machine running MacOS High Sierra, (2) notarize the bundle on any machine (Intel or ARM) running Big Sur or later. The entire procedure for building is outlined in the \texttt{Makefile} in the root folder of the Somax2 repository, but will also be described below. Note that it's possible to to complete all of the steps on a single machine by running multiple versions of the OS in virtual environments (Parallels, VMware Fusion, VirtualBox, etc.).
+
+\subsubsection{Bundle Requirements}
+The following requirements are by no means exhaustive, but are known to work for bundling the package using PyInstaller on MacOS High Sierra (i.e. Step 1 below, all of the following steps can be done on any machine running MacOS Big Sur or later):
+
+\begin{description}
+	\item [Host Machine:] Intel x86-64
+	\item [MacOS Version:] High Sierra 10.13.6
+	\item [Python Version:] Python 3.9.5 (local \texttt{brew} installation, i.e. \texttt{brew install python@3.9})
+	\item [PyInstaller Version:] PyInstaller 4.10
+	\item [Dependencies:] See \texttt{Somax2/python/somax/requirements-pyinstaller.txt} (i.e. \texttt{pip3 install -r requirements-pyinstaller.txt})
+\end{description}
+
+\subsubsection{Step 1: PyInstaller Bundle}
+The PyInstaller bundle is created by running \texttt{make pyinstaller} from the root folder on the High Sierra machine/VM. This requires the Ircam developer's certificate (\texttt{"Developer ID Application: INST RECHER COORD ACOUST MUSICALE"}) to be available on the machine.\footnote{The procedure of obtaining/using the Ircam developer's certificate will not be described here, but there are a number of internal Ircam documents describing this as well as the procedure for properly signing/notarizing an application, a \texttt{dmg} and/or a \texttt{pkg}.} 
+
+\subsubsection{Step 1.1: Re-Signing the Bundle}
+Due to an issue with the \texttt{sklearn} package (which is a dependency of \texttt{librosa}) on High Sierra, we will have to re-sign the bundle after building it. This is done by running \texttt{make codesignature} (on any version of MacOS / any architecture). If, in the future, the minimum MacOS version supported should change to Mojave or later, this step can be ignored.
+
+\subsubsection{Step 2: Notarizing the Bundle}
+On a machine running MacOS Big Sur or later (on any architecture), run \texttt{make notarize} to notarize the built application. For this step to work, you will need to register your app-specific password\footnote{For more info on generating an app-specific password, refer to the internal document "Développement Apple à l’Ircam".} under the profile name \texttt{repmus} (or adapt the \textt{Makefile} to match your registered app-specific password) using \texttt{xcrun notarytool store-credentials}.
+
+\subsubsection{Step 3: Creating the Max Package}
+The final step in the procedure is to create the Max package, containing the signed and notarized bundle. Normally when we launch the server from Max (e.g. through the \texttt{Start Server} button of the \texttt{somax.server.app} or the \texttt{initialize} message to the \texttt{somax.server} from the GitHub repository, this will launch the \texttt{launch\_local} script in the \texttt{max/somax/misc} folder, which runs the \texttt{somax\_server.py} through the local Python installation. In the Max package, we want this to point to the packaged \texttt{somax\_server.app} instead. To do this, open the \texttt{somax.interpreter.maxpat} and change the \texttt{loadmess 0} into \texttt{loadmess 1}.
+
+\begin{figure}[h!]
+    \centering        
+ 	\includegraphics[width=0.5\textwidth, keepaspectratio]{figures/somax_interpreter.png}
+    \caption{\texttt{somax.interpreter.maxpat}}
+    \label{fig:myFig}
+\end{figure}
+
+Once this is done, run \texttt{make max-package} to create the final dmg containing the Max package. This step currently requires the \texttt{create-dmg} formulae that can be installed through \texttt{brew}. It's however not mandatory to use this, it will simply resize the installed dmg to a good format and change the background image, and all of these steps could be done manually.
+
+Also note that should any of the steps fail, there's are two commands to clean up: \texttt{make clean} and \texttt{make clean-all}. \texttt{make clean} will remove the \texttt{build} folder and other files related ot the building step, so if for example step 3 fails, running \texttt{make clean} will reset the build to the state it was in at end of the previous step (i.e. after step 2 has succeeded). Running \texttt{make clean-all} will in addition remove the \texttt{dist} folder, which contains the signed application, and will therefore reset the state so that the build procedure must be restarted from step 1.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{PyPI Package}\label{ssec:2-pypi-package}
+The \texttt{Somax2/python/somax} folder is structured as a PyPI package, but recent versions of Somax have not been published to PyPI due to lack of interest in the Python code. Should there be an interest in this again, it's possible to create new distributions through the normal procedure of PyPI packages, e.g.
+\begin{lstlisting}
+python3 setup.py sdist bdist_wheel
+twine check dist/*
+twine upload dist/*
+\end{lstlisting}
+
+
 

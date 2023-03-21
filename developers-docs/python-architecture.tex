@@ -264,6 +264,63 @@ Without prior knowledge, deciphering the exact control flow of the timeout behav
 
 \section{The Player}\label{ssec:2-player}
 
+The role of the \texttt{Player} class is to select the most appropriate \texttt{CorpusEvent} at each time step when generation is called for. The \texttt{Player} has been discussed extensively in \cite{somaxtheory2021} and \cite{somaxsoftware2021}, but a number of changes have been introduced since then. This section will give an overview of the main components and main functions of the \texttt{Player}.
+
+The \texttt{Player} manages all of the modular components of the architecture that in turn determinate how the generation should work, and can be configured in a number of different ways (although only a single configuration is currently used in the \texttt{somax.player} object in Max). With few exceptions, the architecture of the \texttt{Player} is designed so that different behaviours are encapsulated in a single class, so that adding or removing a particular class will enable or disable a particular behaviour. These classes will be described in section \ref{ssec:2-player-classes}.
+
+In practice, to understand the full behaviour of the \texttt{Player}, it's sufficient to understand its four main functions and the classes used for passing information between these functions. These functions will be described in section \ref{ssec:2-player-functions}.
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Main Classes}\label{ssec:2-player-classes}
+
+The main classes managed by the \texttt{Player} are the \texttt{Atom}, \texttt{AbstractMergeAction}, \\\texttt{AbstractScaleAction}, \texttt{AbstractPeakSelector}, \texttt{FallbackSelector} and \\ \texttt{TransformHandler} classes.\footnote{In general, any class named \texttt{Abstract<ClassName>} is a modular component of Somax and has a number of implementations in the same module that represents a certain strategy for the part of the generation process that the base object corresponds to.}
+
+Each \texttt{Atom} object corresponds to one layer of the generation, where each layer corresponds to one type of \texttt{Feature} of the \texttt{Corpus}. In the default \texttt{somax.player} configuration, these layers are \texttt{melodic}, which listens to pitch influences from Max, \texttt{harmonic}, which listens to chroma influences from Max, \texttt{self[melodic]} which through its \texttt{self\_influenced} parameter listens to pitch influences of the previously output \texttt{CorpusEvent} through the \texttt{Player.\_feedback} function (which will be discussed in section \ref{ssec:2-player-functions})  and \texttt{selfharmonic}, which listens to chroma influences of the previous output.
+
+The \texttt{Atom} class manages three further objects: \texttt{Classifier}, \texttt{MemorySpace} and \texttt{ActivityPattern}. The \texttt{Classifier} is responsible for the strategy of analyzing incoming influences and converting them into discrete labels that the \texttt{MemorySpace} can use to discretely match the influences with the loaded \texttt{Corpus}, and the result is stored in the \texttt{ActivityPattern}, which is responsible for the state and peak-shifting strategy. All of this is thoroughly explained in \cite{somaxtheory2021}, but its the classes used for communication between the objects will be briefly discussed in section \ref{ssec:2-player-functions} in terms of classes.
+
+
+In earlier reports (e.g. \cite{borg_2019}, \cite{somaxsoftware2021}), the \texttt{StreamView} class, an intermediate class between the \texttt{Player} and the \texttt{Atom}, was mentioned. Since Somax version 2.2, this class has been removed as it was never used in practice and added significant overhead in terms of performance. Now the \texttt{Player} directly manages all of its \texttt{Atom}s.
+
+The \texttt{MergeAction} is responsible for combining all of the peaks from all \texttt{Atom}s when generating output through the \texttt{Player.new\_event} function (see \ref{ssec:2-player-functions}). Currently, only a single implementation of the \texttt{MergeAction} exists (\texttt{DistanceMergeAction}), which will merge peaks close to each other in time into a single peak. The algorithm is described in detail in chapter 4.2 in \cite{somaxtheory2021}. This procedure is necessary since the peaks are stored and shifted in continuous time, and we don't want all peaks throughout the entire duration of an event to be merged into a single peak, as this would introduce a strong bias towards longer events. But it's important to be aware of, as it is one of the most expensive operations of the runtime architecture of Somax.
+
+In the previous theoretical report \cite{somaxtheory2021}, a distinction was made between merging peaks (chapter 4.2 in \cite{somaxtheory2021}) and scaling peaks (4.3 in \cite{somaxtheory2021}), but the software architecture did not portray this distinction, both of these roles were managed by the \texttt{MergeAction} class \cite{somaxsoftware2021}. This has since then been changed, the \texttt{MergeAction} only manages peak merging (as described in the previous paragraph), while a new class, the \texttt{ScaleAction} manages all aspects of conditional filtering and scaling of peaks. A \texttt{ScaleAction} may change the score of a certain peak based on how well it matches a condition (e.g. if it represents the next consecutive event in the \texttt{Corpus} or how well it matches some condition regarding the energy/amplitude/duration/etc. specified by the user), but it should never remove or add any peaks. Peaks with a score of 0 will however be removed once all \texttt{ScaleAction}s have been applied, so the implemented behaviour of any \texttt{ScaleAction}s should be commutative in order to ensure that peaks whose score is set to 0 by any \texttt{ScaleAction} remain at 0 so that they will be removed. In summary, one could say that the \texttt{Atom} is responsible for creating peaks based on a binary condition ("does it match or not?"), while the \texttt{ScaleAction} is responsible for weighting existing peaks based on how well they match certain conditions.
+
+The \texttt{PeakSelector} is responsible for selecting a \texttt{CorpusEvent} to output, corresponding to one of the peaks it receives. If there are no peaks (either because all peaks were filtered out by the \texttt{ScaleAction}s or because no peaks existed in the \texttt{Atom}s in the first place), the \texttt{FallbackSelector} will be called to select a peak directly from the \texttt{Corpus}, if applicable.
+
+Finally, the \texttt{TransformHandler} is responsible for managing \texttt{Transform}s (transpositions) in the architecture. When a \texttt{Transform} is added or removed by the user, this will trigger a number of behaviours in any aspect of the system related to matching (e.g. in the \texttt{NGramMemorySpace}, which keeps a history of the last $N$ matches for each transposition).
+
+The \texttt{TransformHandler} is also responsible for converting a \texttt{Transform} into an index, so that it can be stored and used in an optimized way in a numpy \texttt{ndarray} in the \texttt{Peaks} class. Originally, when transforms were added to Somax (which dates back to the pre-2.0 beta versions developed by Axel Chemla--Romeu-Santos), it was envisioned that transpositions would just be one type of transform, and that many other options would be possible. For this reason, the \texttt{TransformHandler} stores each \texttt{Transform} by an index rather than an absolute value (e.g. a transform of +2 semitones is not necessarily stored as the value '2', but could be any value depending on the number of transforms that have been added or removed before the +2 transform was added). The theory and application of transforms are thoroughly described in chapter 5 in \cite{somaxtheory2021}.
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Main Functions}\label{ssec:2-player-functions}
+
+The four main public functions of the \texttt{Player} are \texttt{Player.read\_corpus}, \texttt{Player.influence}, \texttt{Player.new\_event}, and \texttt{Player.step}. The reader should be able to gain a full understanding of the generative aspects of Somax by understanding those functions. In addition, the main classes used internally by these functions are the \texttt{AbstractInfluence}, \texttt{AbstractLabel} and \texttt{Peaks} classes.
+
+\subsubsection{Player.read\_corpus}
+
+\texttt{Player.read\_corpus} is called when a \texttt{Corpus} is loaded by the user, and will construct a model in each \texttt{Atom}'s \texttt{MemorySpace}, by in each \texttt{Atom} analyzing the \texttt{CorpusFeature} relevant for that particular layer in the \texttt{Classifier}, which converts the sequence of \texttt{CorpusFeature}s (one per \texttt{CorpusEvent} into a sequence of \texttt{Label}s, that the \texttt{MemorySpace} builds its model from.
+
+\subsubsection{Player.influence}
+The \texttt{Player.influence} is called each time the \texttt{OscAgent} receives a single influence from Max, and will not trigger any output, it will simply update the state of the targeted \texttt{Atom} (or more specifically the \texttt{Atom}'s \texttt{ActivityPattern}), where the \texttt{Peaks} are stored. 
+
+When an \texttt{Atom} is influenced, it will first shift its stored \texttt{Peaks} based on the amount of (\texttt{Transport}'s) time that has passed since the last time it was shifted. This is followed by classifying (through its \texttt{Classifier}) the \texttt{FeatureInfluence} into a \texttt{Label} (or more specifically, one \texttt{Label} per active \texttt{Transform}), which is used by the \texttt{MemorySpace} to generate a list of \texttt{PeakEvent}s, which are inserted into the currently stored \texttt{Peaks} object in the \texttt{ActivityPattern}. The \texttt{Peaks} are stored as three sequences of \texttt{np.ndarray} of equal lengths, where a particular index in one of the arrays is associated with the same index in any of the other arrays, but the entries are not sorted in any way, and multiple indices corresponding to a single \texttt{CorpusEvent} is possible. The \texttt{Peaks} are stored by time, as most \texttt{ActivityPattern}s (e.g. the \texttt{ClassicActivityPattern}) shift peaks continuously in time, so the original association to a particular \texttt{CorpusEvent} is lost at this point, as the peak is stored by its time rather than by its index.
+
+\subsubsection{Player.new\_event \& Player.step}
+
+
+
+influence, label, peaks
+feedback
+
+
+
+
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% COMPILATION
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

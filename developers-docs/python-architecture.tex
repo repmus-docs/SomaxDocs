@@ -306,18 +306,18 @@ The four main public functions of the \texttt{Player} are \texttt{Player.read\_c
 \texttt{Player.read\_corpus} is called when a \texttt{Corpus} is loaded by the user, and will construct a model in each \texttt{Atom}'s \texttt{MemorySpace}, by in each \texttt{Atom} analyzing the \texttt{CorpusFeature} relevant for that particular layer in the \texttt{Classifier}, which converts the sequence of \texttt{CorpusFeature}s (one per \texttt{CorpusEvent} into a sequence of \texttt{Label}s, that the \texttt{MemorySpace} builds its model from.
 
 \subsubsection{Player.influence}
-The \texttt{Player.influence} is called each time the \texttt{OscAgent} receives a single influence from Max, and will not trigger any output, it will simply update the state of the targeted \texttt{Atom} (or more specifically the \texttt{Atom}'s \texttt{ActivityPattern}), where the \texttt{Peaks} are stored. 
+The \texttt{Player.influence} is called each time the \texttt{OscAgent} receives a single influence from Max. When called, it updates the state of the targeted \texttt{Atom} (or more specifically the \texttt{Atom}'s \texttt{ActivityPattern}), where the \texttt{Peaks} are stored, but will not trigger any output.
 
 When an \texttt{Atom} is influenced, it will first shift its stored \texttt{Peaks} based on the amount of (\texttt{Transport}'s) time that has passed since the last time it was shifted. This is followed by classifying (through its \texttt{Classifier}) the \texttt{FeatureInfluence} into a \texttt{Label} (or more specifically, one \texttt{Label} per active \texttt{Transform}), which is used by the \texttt{MemorySpace} to generate a list of \texttt{PeakEvent}s, which are inserted into the currently stored \texttt{Peaks} object in the \texttt{ActivityPattern}. The \texttt{Peaks} are stored as three sequences of \texttt{np.ndarray} of equal lengths, where a particular index in one of the arrays is associated with the same index in any of the other arrays, but the entries are not sorted in any way, and multiple indices corresponding to a single \texttt{CorpusEvent} is possible. The \texttt{Peaks} are stored by time, as most \texttt{ActivityPattern}s (e.g. the \texttt{ClassicActivityPattern}) shift peaks continuously in time, so the original association to a particular \texttt{CorpusEvent} is lost at this point, as the peak is stored by its time rather than by its index.
 
 \subsubsection{Player.new\_event \& Player.step}
+The final set of functions are \texttt{Player.new\_event} and \texttt{Player.step}, which both take the current state of the \texttt{Player} into account to select the next \texttt{CorpusEvent} that should be played. 
 
+The \texttt{Player.new\_event} collects all of the \texttt{Peaks} (after shifting them based on the amount of time that has passed since the previous shift) from each \texttt{Atom} (or, again, more specifically from the \texttt{ActivityPattern} of each \texttt{Atom}), merges them through the \texttt{MergeAction.merge} function, scales them through all of its \texttt{ScaleAction}s, and finally selects from the \texttt{Peaks} which corresponding \texttt{CorpusEvent} to output through the \texttt{PeakSelector}. In case no peaks exist in the \texttt{Peaks} object, the \texttt{FallbackSelector} is used to select an appropriate \texttt{CorpusEvent} from the entire \texttt{Corpus} (typically the one following the previously output event, but a number of conditions exist here). 
 
+Finally, once the \texttt{CorpusEvent} has been selected, the \texttt{Player.\_feedback} function will be called. This function will inform all of the \texttt{Player}'s subcomponents about which event was output so that they can update the state if necessary. This is also where all the \texttt{self\_influenced} \texttt{Atom}s are influenced.
 
-influence, label, peaks
-feedback
-
-
+The \texttt{Player.step} function is similar to the \texttt{Player.new\_event} function in terms of purpose, i.e. to play the next \texttt{CorpusEvent}, but will bypass everything related to \texttt{Peaks} and simply play the consecutive event in the \texttt{Corpus}. 
 
 
 

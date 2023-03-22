@@ -38,7 +38,7 @@ The Somax package consists of more than 50 abstractions, but most of them are us
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\subsection{Design Guidelines}\label{ssec:3-global-state}
+\subsection{Design Guidelines}\label{ssec:3-design-guidelines}
 To achieve the goal mentioned above, i.e. that all base objects should behave as if they were native Max objects, or more specifically as if they were well-designed, compiled externals, the following set of guidelines were developed:
 
 \subsubsection{Clear Separation Between Attributes and Messages}
@@ -61,23 +61,83 @@ With that said, there are still a number of cases where global state is necessar
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \subsection{OSC Communication Issues}\label{ssec:3-osc-issues}
+All of the communication between Max and Python is handled through (UDP-based) OSC. There are several benefits of choosing UDP-based OSC, it's efficient for real-time messaging and it's compatible with a number of different environments (most programming languages and music-oriented coding environments have actively maintained OSC modules). But most of its downsides are highly problematic for our use case: the fact that we cannot be sure whether the message was received, that there's no synchronous sending in Max, that messages may get silently dropped if the socket is full, and finally that we cannot send objects larger than a couple of kilobytes (size varies slightly between implementations).
 
+Most of these issues are however only problematic in the initialization step, when establishing a connection between Max and Python, creating the remote representations of the \texttt{somax.player} and loading a corpus. For runtime messages, if a message should be dropped, this would in the absolute worst case result in a second or two of silence (which likely would sound like a musical pause), but in most cases, it wouldn't have any real consequences at all. For the initialization, however, there are a number of things that could go wrong. For example, if a user sends a message from Max to a remote \texttt{Player} (for example setting a certain parameter) while the remote \texttt{Player} still is in the middle of initializing and has yet to establish the UDP connection, the message sent by the user will be dropped and there's no way for the user to know that this has happened. This means that the UI in Max will indicate one value but the actual value used by the remote \texttt{Player} is another. 
+
+Now, one could claim that it's perfectly legitimate to assume that the user would understand that it's not possible to set parameters until the initialization of the remote \texttt{Player} is complete, and while this is true to some extent, it would make the objects cumbersome to use in Max, as it wouldn't be possible to rely on normal initialization / control flow mechanics in Max such as attributes, loadbangs or pattr, and the it would be important to manually keep track of the order that the messages are sent in, thus departing far from the standards of Max programming.
+
+With this in mind, the objects that rely on communication with the remote Python server (i.e. the \texttt{somax.server} and \texttt{somax.player} objects in Max) have been designed to store its internal state inside the object as well as on the remote. This means that if the remote crashes, is restarted, or if parameters are set before the remote has been started, it's possible to just update the remote by sending the state as it has been stored in Max. This means that the objects can be used in a normal manner, where we can set any attribute at initialization independently of whether the remote is running, and then just output it after the initialization procedure has been completed. 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \subsection{Abstraction Issues}\label{ssec:3-abstractions}
 
+The second main issue of the Somax library is related to the requirement of writing the Max code as abstractions rather than externals. While this comes with a number of benefits, mainly in terms of transparency for the user, the major problem with abstractions in Max is that they behave differently than externals on initialization. Consider the example in figure \ref{fig:3-abstractions-externals}. Assuming that the \texttt{myabstraction} object is an abstraction (which relies on \texttt{patcherargs} to pass attributes) and the \texttt{myexternal} is an external (where the attribute is a member variable), the value of the attribute \texttt{somevalue} will be different in these two objects. In the external object, \texttt{somevalue} will be set to 1 when the object is initialized, then immediately changed to 2 by the \texttt{loadbang}, as we expect. In the abstraction, the object will be initialized without a given value for \texttt{somevalue}, then the \texttt{loadbang} will set it to 2, followed by the deferlow'ed \texttt{patcherargs} setting it to 1. So in the object on the left, the value for \texttt{somevalue} will be 1 but in the object on the right, the value will be 2.
 
+ \begin{figure}[h!]
+    \centering        
+ 	\includegraphics[width=0.7\textwidth, keepaspectratio]{figures/abstractions-externals.png}
+    \caption{The abstraction inconsistency}
+    \label{fig:3-abstractions-externals}
+\end{figure}
 
-\subsection{Global State}\label{ssec:3-global-state}
+\noindent Now, one could claim that this is a rather marginal case that won't be of huge importance, as you wouldn't set the attribute to one value and then immediately change it afterwards regardless. This is true for top-level objects, but becomes problematic for any nested abstraction. Consider the case in figure \ref{fig:3-nested-abstractions}. Here, \texttt{myplayer.app} is an abstraction that contains \texttt{myplayer} (among many other objects, omitted for space), where we want the default value for the attribute \texttt{mode}, when used in this particular abstraction, to be \texttt{continuous}, but the user may want to change this value immediately as part of their own configuration. If \texttt{myplayer} was an external, this would work as intended, but since \texttt{myplayer} is an external, the \texttt{patcherargs} will overwrite the user settings as sent by the \texttt{loadbang}.
+
+ \begin{figure}[h!]
+    \centering        
+ 	\includegraphics[width=0.6\textwidth, keepaspectratio]{figures/nested-abstractions.png}
+    \caption{Nested abstractions}
+    \label{fig:3-nested-abstractions}
+\end{figure}
+
+\noindent Unfortunately, there are a number of issues related to nested abstractions, such as the difficulty to pass any number of attributes from one abstraction to another (requires nested \texttt{patcherargs} where we cannot ensure the order), the difficulty to set default arguments (passing arguments from one abstraction to another with the \texttt{\#1}-syntax will be replaced with \texttt{0} if the user doesn't provide any argument to the outer abstraction). Yet another issue is the fact that there's no way to fail initialization of the abstraction (as in figure \ref{fig:3-failed-init}) if invalid arguments are passed to the abstraction. This can be very problematic if the abstraction is manipulating some global state or performing I/O-operations. A concrete example in the Somax library would be if \texttt{somax.player} is initialized with invalid OSC ports, which unless properly handled would create the \texttt{OscAgent} on the server but then be unable to communicate with it (including deleting it). Or even worse, if its initialized with an OSC port used by another \texttt{somax.player}, which would create all sorts of issues between the two players.
+
+ \begin{figure}[h!]
+    \centering        
+ 	\includegraphics[width=0.25\textwidth, keepaspectratio]{figures/failed-external.png}
+    \caption{An external that failed initialization since the arguments were invalid}
+    \label{fig:3-failed-init}
+\end{figure}
+
+\noindent The workaround for most of these problems lies in the \texttt{somax.await\_patcherargs} abstraction. This object is modelled on the \texttt{bach.args} object from the Bach library \cite{agostini2012bach} and will store any messages sent to the abstraction and not output them until the \texttt{patcherargs} initialization is done, hence ensuring correct initialization order. Unlike the \texttt{bach.args} object, this object will also allow explicit initialization failures if the object is initialized with invalid arguments. In this case, the \texttt{somax.await\_patcherargs} will continue to block any input to ensure that no I/O-operations or global state changes are done while the object is invalid. If the issues causing the initialization to fail are resolved, it's possible to reinitialize the object with the \texttt{reload} command.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+\subsection{Global State}\label{ssec:3-global-state}
+While one of the main guidelines presented in section \ref{ssec:3-design-guidelines} was that global state should be avoided as much as possible, some interaction between certain objects is necessary. This could've be solved by directly connecting the objects to each other (which, in fact, was the case in early versions of Somax 2), but from a user perspective, this would've been inconvenient and difficult to understand, as it is related to internal implementation details that the user shouldn't have to be aware of. Global state is therefore used in the following cases:
 
-\todo{OVERVIEW here}
-\todo{explicit requirement: abstractions only-ish for future developer}
-\todo{ROSETTA}
-\todo{OSC PORT ALLOCATION}
+\subsubsection{Initialization of server and players}
+The \texttt{somax.server} and \texttt{somax.player} (or more specifically the \texttt{somax.unique\_number} abstraction inside the \texttt{somax.player.core} object) objects store their corresponding OSC ports in the global \texttt{somax.recvports}. This allows us to automatically assign OSC ports when new \texttt{somax.player}s are created, as well as ensure that if an object is created with manual ports that are already used elsewhere, the initialization will fail. Ports are removed from the dictionary when the \texttt{somax.player} or \texttt{somax.server} are deallocated.
+
+The \texttt{somax.player} also stores its name in the \texttt{somax.players} dict (through the \texttt{somax.uniuqname} object)  to ensure that two players with the same name cannot be created on the server.
+
+\subsubsection{Communication between server and player}
+Nearly all communication between the remote \texttt{SomaxServer} and \texttt{OscAgent} (which correspond to the \texttt{somax.server} and \texttt{somax.player} objects in Max) is handled directly on the Python side, but there are a couple of cases where communication directly between the \texttt{somax.server} and \texttt{somax.player} local objects is necessary. These are:
+\begin{itemize}
+	\item When the remote \texttt{OscAgent} is created. This message is sent from the \texttt{somax.player} to the \texttt{somax.server}, which sends the message to the \texttt{SomaxServer} to create the \texttt{OscAgent}. 
+	\item When the \texttt{somax.server} crashes or is terminated in a manner that doesn't allow the remote \texttt{OscAgent} to inform its local \texttt{somax.player} to stop playing.
+	\item When the \texttt{somax.server}'s transport is started or stopped.
+\end{itemize}
+
+\noindent These messages are handled with global \texttt{send}-\texttt{receive} pairs on the addresses \texttt{somax.from\_server} for messages from \texttt{somax.server} to \texttt{somax.player}) and \texttt{somax.to\_server} for messages from \texttt{somax.player} to \texttt{somax.server}.
+
+
+\subsubsection{Communication between server and corpus builder}
+
+The \texttt{somax.midicorpusbuilder} and \texttt{somax.audiocorpusbuilder} objects do not have their own pairs of \texttt{udpsend} and \texttt{udpreceive}, but communicates through the \texttt{somax.server}. Messages from either of the local corpus builders and their remote counterparts are therefore sent through the \texttt{somax.server}, and uses the same send/receive addresses as in the above paragraph (\texttt{somax.from\_server} and \texttt{somax.to\_server}).
+
+
+\subsubsection{Corpus path}
+The \texttt{corpuspath} is the folder to which all corpus builders will export their corpora when built, as well as the folder where all \texttt{somax.player}s by default will search for corpora and associated audio files. The corpus path is fully managed by the \texttt{somax.corpuspath} abstraction, which internally uses the \texttt{value} object with name \texttt{somax.corpuspath} to store the corpus path, as well as \texttt{send}-\texttt{receive} address \texttt{somax.corpuspath\_update}, which triggers an update in all \texttt{somax.corpuspath} objects when the path is updated in one of them.
+
+
+\subsubsection{Communication between .app objects}
+Since some of the explicit requirements for the \texttt{somax.<object>.app} objects (described in section \ref{ssec:3-app-objects}) are that they should be self contained, support fully dynamic routing of influences between objects and be duplicatable without having to leave presentation mode (i.e. without having to add or remove any patch cords), global sends and receives is a must here. 
+
+Influence messages between .app objects are are sent through the \texttt{somax.source} object (contained in any \texttt{.app} object that has an influencer) using an address specific for that particular source with the format \texttt{source.<name>} (where \texttt{<name>} is the name of the object, e.g. \texttt{Player2} or \texttt{AudioInfluencer}). These names are also stored in the dictionary \texttt{somax.sources}.
+
+Finally, the \texttt{somax.routing} send/receive-address is used whenever a source is added or removed to update any related UI object, for example to remove the source from all associated \texttt{umenu}s if the source is deleted.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% SERVER

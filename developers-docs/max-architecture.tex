@@ -112,6 +112,8 @@ The \texttt{somax.server} and \texttt{somax.player} (or more specifically the \t
 
 The \texttt{somax.player} also stores its name in the \texttt{somax.players} dict (through the \texttt{somax.uniuqname} object)  to ensure that two players with the same name cannot be created on the server.
 
+Finally, the \texttt{somax.server} stores an internal counter of the number of \texttt{somax.server} objects that currently exists in Max, to avoid duplicate servers. This is stored in the \texttt{somax.num\_servers} \texttt{value} object.
+
 \subsubsection{Communication between server and player}
 Nearly all communication between the remote \texttt{SomaxServer} and \texttt{OscAgent} (which correspond to the \texttt{somax.server} and \texttt{somax.player} objects in Max) is handled directly on the Python side, but there are a couple of cases where communication directly between the \texttt{somax.server} and \texttt{somax.player} local objects is necessary. These are:
 \begin{itemize}
@@ -144,6 +146,55 @@ Finally, the \texttt{somax.routing} send/receive-address is used whenever a sour
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \section{The Server Object}\label{ssec:3-server}
+
+From a development point of view, the \texttt{somax.server} object has five different phases: (1) object initialization, (2) remote initialization, (3) runtime, (4) remote termination, (5) object deletion. Note that this is different from what the status outlet (second outlet of the \texttt{somax.server} object) shows: this outlet shows the different states as a result from the different phases. Figure \ref{fig:3-server-states} illustrates the relation between the phases and the states of the object. The state is continuously polled by the \texttt{somax.serverstatus} abstraction, which continuously sends requests over OSC to check whether the remote server is responding and update its status.
+
+ \begin{figure}[h!]
+    \centering        
+ 	\includegraphics[width=0.6\textwidth, keepaspectratio]{figures/server_state.png}
+    \caption{State transition diagram for the \texttt{somax.server} object. The rounded rectangular objects represent the states as shown on the second outlet of the object and arrows indicate name of messages sent to the \texttt{somax.server} object (parenthesized text represent cases, not messages). Note that the diamond blocks do not necessarily represent conditions (for example the "remote termination" phase cannot meaningfully fail) they are only used to illustrate the different phases/transitions described in this text.} 
+    \label{fig:3-server-states}
+\end{figure}
+
+%%%
+
+\subsubsection{Object Initialization}
+When the \texttt{somax.server} object is created, the strategy described in section \ref{ssec:3-abstractions} is used to handle \texttt{patcherargs} accordingly. There are three possible outcomes here:
+\begin{itemize}
+	\item The initialization fails because invalid arguments are provided (for example a port that is already in use\footnote{Note that while it's possible to initialize the server with custom ports and/or ip, it will not be possible to launch the server through the user interface in this case. To do this, the server must be manually launched from a terminal.}). The state will be \texttt{invalid} and the object will ignore all messages.
+	\item The initialization fails because another \texttt{somax.server} already exists. The state will be \texttt{duplicate} and the object will ignore all messages except the \texttt{reload} message.
+	\item The initialization succeeds. The state will be \texttt{offline} and accept any messages.
+\end{itemize}
+
+\noindent The reason why it's important for this step to be able to fail is because \texttt{somax.player} sends their \texttt{create\_agent} messages to the \texttt{somax.to\_server} address. If we have two initialized \texttt{somax.server} objects, this means that we will receive it twice and therefore create two duplicate remote agents, causing all sorts of issues. The same issue applies to all messages in general: even if we send a message directly on the inlet of one of two duplicate \texttt{somax.server} objects, we will only send a single message through the \texttt{udpsend}, but any response from the remote server will be received on both of the \texttt{udpreceive}, and hence risk causing a number of issues. The duplication status is handled through the internal \texttt{somax.num\_servers} \texttt{value} object mentioned in section \ref{ssec:3-global-state}, which is incremented when the object is created, independently of whether initialization succeeded or not. The ports used by the object are also stored in the \texttt{somax.recvports} dictionary.
+
+Sending \texttt{reload} to a \texttt{somax.server} object will trigger the procedure described under "Object Deletion" immediately followed by the "Object Initialization"
+
+All \texttt{loadbang}/\texttt{loadmess} messages are handled when the object is created (technically before the \texttt{patcherargs}, but this will only set the default values for a number of parameters and settings, it will not trigger any output, and the order that the \texttt{loadbang}s are executed in is (and should always be) irrelevant.
+
+%%%
+
+\subsubsection{Remote Initialization}
+When the \texttt{initialize} message is sent to the \texttt{somax.server} (internally or externally – the \texttt{autoinitialize} attribute will trigger the \texttt{initialize} message internally once object initialization is complete). When this is called, the remote server script/application will be launched through the \texttt{somax.interpreter}, specifically by using the \texttt{;max launchbrowser} command, which opens the provided file in the default application. Once the server has been properly launched, the \texttt{SomaxServer} will immediately send the message \texttt{initialized} over OSC, which will be output on the first outlet of the \texttt{somax.server} object, as well as send its currently stored value for all relevant attributes (currently only \texttt{tempo} and \texttt{active}).
+
+%%%
+
+\subsubsection{Runtime}
+The runtime phase, from when the connection between the local \texttt{somax.server} and the remote \texttt{SomaxServer} has been established (represented by the states \texttt{playersmissing}, \texttt{ready} and \texttt{running}) is where the user likely spends 99\% of the time, but is from a development point of view the phase that requires the least amount of work. During this phase, any message sent to the \texttt{somax.server} object will simply be sent directly to the server (but stateful messages, such as \texttt{tempo} and \texttt{active} will also stored locally, in case the server is restarted).
+
+During this phase, the \texttt{somax.serverstatus} will continuously poll the remote server, by sending a list of the names of all the local \texttt{somax.player} objects that exist in Max. The remote server will respond with two values, one boolean indicating whether all of these objects also exist on the remote (if not, the status will be \texttt{playersmissing}) and whether the server's transport is active (status: \texttt{running} or not (status: \texttt{ready}). Typically, the remote server should always be able to respond to these requests within a second, as all of its heavy operations are computed in separate threads, but in some cases (for example when running "Test Segmentation" from the \texttt{somax.audiocorpusbuilder}), the server will change its status to \texttt{working}, indicating that it didn't receive any response. If the server doesn't receive any response for 25 seconds, the \texttt{somax.serverstatus} will assume that the server has crashed and change the status to \texttt{terminated} (not represented in figure \ref{fig:3-server-states}).
+
+%%%
+
+\subsubsection{Remote Termination}
+When an explicit \texttt{terminate} message is sent by the user, the remote server will be shut down and trigger the \texttt{terminated} message before closing. It will before shutting down delete all of its remote \texttt{OscAgent}s and thereby trigger \texttt{terminated} messages to all corresponding \texttt{somax.player}s. The \texttt{somax.serverstatus} will receive the \texttt{terminated} message and change its state to \texttt{terminated}. Note that this state is internally identical to \texttt{offline}.
+
+
+%%%
+
+\subsubsection{Object Deletion}
+When the \texttt{somax.server} object deleted, the \texttt{freebang} is triggered, which decrements the \texttt{somax.num\_servers} \texttt{value} is decremented and its ports are deallocated from the  \texttt{somax.recvports} dictionary. If the \texttt{autoterminate} attribute is enabled (which is the default case), the remote server will also be shut down as if \texttt{terminate} was explicitly called\footnote{Note that this is not represented in figure \ref{fig:3-server-states}, but the object can obviously be deleted from any of the states above, so a direct transition from any state to the deletion phase is possible and non-problematic)}. 
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% PLAYER

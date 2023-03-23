@@ -334,3 +334,6 @@ Temporary Items
 
 # Jetbrains
 .idea
+
+# Drawio
+.$*.drawio.*

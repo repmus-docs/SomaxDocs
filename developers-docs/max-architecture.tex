@@ -147,7 +147,7 @@ Finally, the \texttt{somax.routing} send/receive-address is used whenever a sour
 
 \section{The Server Object}\label{ssec:3-server}
 
-From a development point of view, the \texttt{somax.server} object has five different phases: (1) object initialization, (2) remote initialization, (3) runtime, (4) remote termination, (5) object deletion. Note that this is different from what the status outlet (second outlet of the \texttt{somax.server} object) shows: this outlet shows the different states as a result from the different phases. Figure \ref{fig:3-server-states} illustrates the relation between the phases and the states of the object. The state is continuously polled by the \texttt{somax.serverstatus} abstraction, which continuously sends requests over OSC to check whether the remote server is responding and update its status.
+The \texttt{somax.server} object manages all communication with the \texttt{SomaxServer} class in Python, and is responsible for launching the Python application/script as well as managing its lifetime. From a development point of view, the \texttt{somax.server} object has five different phases: (1) object initialization, (2) remote initialization, (3) runtime, (4) remote termination, (5) object deletion. Note that this is different from what the status outlet (second outlet of the \texttt{somax.server} object) shows: this outlet shows the different states as a result from the different phases. Figure \ref{fig:3-server-states} illustrates the relation between the phases and the states of the object. The state is continuously polled by the \texttt{somax.serverstatus} abstraction, which continuously sends requests over OSC to check whether the remote server is responding and update its status.
 
  \begin{figure}[h!]
     \centering        
@@ -175,7 +175,7 @@ All \texttt{loadbang}/\texttt{loadmess} messages are handled when the object is 
 %%%
 
 \subsubsection{Remote Initialization}
-When the \texttt{initialize} message is sent to the \texttt{somax.server} (internally or externally – the \texttt{autoinitialize} attribute will trigger the \texttt{initialize} message internally once object initialization is complete). When this is called, the remote server script/application will be launched through the \texttt{somax.interpreter}, specifically by using the \texttt{;max launchbrowser} command, which opens the provided file in the default application. Once the server has been properly launched, the \texttt{SomaxServer} will immediately send the message \texttt{initialized} over OSC, which will be output on the first outlet of the \texttt{somax.server} object, as well as send its currently stored value for all relevant attributes (currently only \texttt{tempo} and \texttt{active}).
+When the \texttt{initialize} message is sent to the \texttt{somax.server} (internally or externally – the \texttt{autoinitialize} attribute will trigger the \texttt{initialize} message internally once object initialization is complete), the remote server script/application will be launched through the \texttt{somax.interpreter}, specifically by using the \texttt{;max launchbrowser} command, which opens the provided file in the default application. Once the server has been properly launched, the \texttt{SomaxServer} will immediately send the message \texttt{initialized} over OSC, which will be output on the first outlet of the \texttt{somax.server} object, as well as send its currently stored value for all relevant attributes (currently only \texttt{tempo} and \texttt{active}).
 
 %%%
 
@@ -200,8 +200,57 @@ When the \texttt{somax.server} object deleted, the \texttt{freebang} is triggere
 %% PLAYER
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-
 \section{The Player Object}\label{ssec:3-player}
+
+The \texttt{somax.player} corresponds to a single \texttt{OscAgent} instance on the remote. Since this object corresponds to a remote object, it will have the same five phases as the \texttt{somax.server} (object initialization, remote initialization, runtime, remote termination and object deletion), but only the first two are complicated in terms of implementations. From a user point of view, we're only concerned with one thing: is the object initialized on the remote server or not. This is why the status outlet (second outlet) of the \texttt{somax.player} is much more simple than that of the \texttt{somax.server}.
+
+The \texttt{somax.player} is divided into two abstractions, the \texttt{somax.player} and the \texttt{somax.player.core}. The \texttt{somax.player.core} corresponds to a generic class that is mandatory for any player, while the \texttt{somax.player} object is the implementation of a specific player consisting of four \texttt{Atom}s, a specific set of \texttt{ScaleAction}s and loads of exposed parameters. It would however be possible to use the \texttt{somax.player.core} to implement a different configuration of a player, for example an OMax-like player with only a single, self-influenced \texttt{Atom}, or a highly complex player with 8 different layers corresponding to different musical dimensions. In terms of roles, the \texttt{somax.player.core} is responsible for the initialization and termination of the remote \texttt{Player} instance (the former is managed through local sends/receives to the \texttt{somax.server}) as well as OSC-communication with the remote \texttt{OscAgent} once it has been created, while the \texttt{somax.player} is responsible for the initialization of the \texttt{Player}s subcomponents (\texttt{Atom}, \texttt{ScaleAction}, \texttt{PeakSelector}, etc.) as well as storing and managing the state of all of the remote parameters.
+
+%%%
+
+\subsubsection{Object Initialization}
+When a \texttt{somax.player} is created, there are two main steps: initialization of the \texttt{somax.player.core} and initialization of the \texttt{somax.player}. The initialization of the \texttt{somax.player.core} is similar to the procedure described for the \texttt{somax.server}. The object takes four arguments: the name of the player, OSC send port, OSC receive port and ip address of the remote player. 
+
+If no arguments are provided, it will automatically be assigned a unique name (using \texttt{\#0}-syntax) and the first two available ports that aren't in use by any other Somax object (through the \texttt{somax.recvports} dictionary). In this case, initialization of the \texttt{somax.player.core} cannot fail. If the user provides a name manually, this name will be changed to \texttt{<name>\_\#0} if another \texttt{somax.player} with the same name already exists. If the user provides manual ports and those ports are already in use by another \texttt{somax.player} or \texttt{somax.server}, the object initialization will fail (through \texttt{somax.await\_patcherargs}, as explained in section \ref{ssec:3-abstractions}). If the initialization succeeds, the name and ports will be stored in their corresponding so that no other player may use them while the object exists.
+
+The \texttt{somax.player} is responsible for all remote parameters, which are handled as attributes in Max. When created, all attributes are set to their default values through a \texttt{loadbang}/\texttt{loadmess}, but does not trigger any output\footnote{Note that all parameters are accessible through \texttt{pattr}, so while the message \texttt{set \$1} typically doesn't trigger any output from the object itself, the internal \texttt{pattr} will still be updated, and this triggers output on the third outlet through the \texttt{pattstorage} object}. After that, the \texttt{patcherargs} is used to parse any attributes provided by the user. Note that initialization of the \texttt{somax.player} cannot fail, only its contained \texttt{somax.player.core} may fail.
+
+%%%
+
+\subsubsection{Remote Initialization}
+When the \texttt{initialize} message is sent to the \texttt{somax.player} (internally or externally – the \texttt{autoinitialize} attribute will trigger the \texttt{initialize} message internally once object initialization is complete), the remote initialization will begin. This process is a bit more complicated than the \texttt{somax.server}'s initialization, as the remote \texttt{Player} contains a number of subcomponents (\texttt{Atom}s, \texttt{ScaleAction}s, etc.), which in turn have a number of parameters, and we can obviously not set the value of a particular component's parameters before the component has been created. The remote initialization procedure is as follows:
+
+\begin{itemize}
+\item[(i)] the \texttt{somax.player.core} will send the \texttt{create\_agent} message to any existing \texttt{somax.server} through the \texttt{somax.to\_server} address, which will send it to the remote server over OSC (this step will obviously fail if no \texttt{somax.server} exists or if the remote \texttt{SomaxServer} isn't initialized), creating and starting the \texttt{OscAgent}, which sends the message \texttt{initialized} over OSC immediately after it has been started. This message is received by the \texttt{somax.player.core} but consumed by the \texttt{somax.player} (in other words, it will not be output through the outlet of the \texttt{somax.player}) to trigger (iii)
+
+\item[(ii)] When the \texttt{somax.player} receives the \texttt{initialized} message, it will send OSC messages to the remote \texttt{OscAgent} to instantiate all of its \texttt{Atom}s. For each \texttt{Atom} created, the remote will respond with a list of the names of all created \texttt{Atom}s. When this list has the length of four (i.e. when the last of the four \texttt{Atom}s used in the default configuration is instantiated) it will trigger step (iii)
+
+\item[(iii)] Once all \texttt{Atom}s are instantiated, the \texttt{somax.player} will send the values of all of its stored parameters to the remote \texttt{OscAgent} in no specific order. If two parameters depend on each other, the order of initialization is handled locally in the \texttt{somax.player} (which is the case for some experimental parameters, for example taboo, where parameter \texttt{tabooenable} also triggers output of \texttt{tabooduration}). Once all parameter messages have been sent, the \texttt{somax.player} will output the \texttt{initialized} message and finally load any corpus, if the user has provided one before instantiation.
+\end{itemize}
+
+ \begin{figure}[h!]
+    \centering        
+ 	\includegraphics[width=0.99\textwidth, keepaspectratio]{figures/player_initialization.png}
+    \caption{The initialization code in \texttt{somax.player}}
+    \label{fig:3-player-initialization}
+\end{figure}
+
+\noindent Note that the goal of this instantiation procedure is to achieve what was described in section \ref{ssec:3-osc-issues}. That is, to allow the user to set the parameters through normal means (attributes, loadbangs, etc.) at any time, without having to wait for the server/player to be online before doing this. It will ensure that the state is preserved if the player is terminated and reinitialized. In effect, we're allowing the user to build their own UI around the \texttt{somax.player} object, where the user always can be sure that the state of their UI will, as long as its value has been sent to the \texttt{somax.player}, always be the actual value of the parameter on the remote.
+
+%%%
+
+\subsubsection{Runtime}
+Similarly to section \ref{ssec:3-server}, the runtime phase, which starts when the remote \texttt{OscAgent} is fully initialized (when the \texttt{somax.player} outputs the \texttt{initialized} message) is the most important phase for the user, but simple in terms of the \texttt{somax.player} object implementation. During this phase, the \texttt{somax.player}'s main role is to convert incoming Max messages (i.e. converting flat case messages into OSC function calls on the form \texttt{<func\_name> <param1>= <value1> <param2>= <value2> ...} into corresponding Python messages. 
+
+There's a separation between \texttt{messages} on one hand and \texttt{attributes} on the other (which are clearly separated in the maxhelp of the \texttt{somax.player}). Messages are converted to the appropriate Python syntax and sent directly to the server without storing them. Attributes, on the other hand, generally revolve around some stateful object in Max (\texttt{toggle}, \texttt{number}, \texttt{value}, \texttt{slider}, etc.) and are typically set through the \texttt{pattrhub} object, which also triggers output from the targeted object and therefore updates the remote as well. There are also a couple of macro parameters (\texttt{mode}, \texttt{weights}, \texttt{transpositions}, etc.). These typically bypass pattr in order to accept and/or output messages with a better format. For example, the \texttt{matrixctrl} controlling transpositions will in Max output a 36-element list of \texttt{<row> <col> <value> <row> <col> <value>}, which is unnecessarily difficult to understand and use for a one-row fixed size \texttt{matrixctrl}, and is therefore converted into a 12-element indexmap before being output.
+
+%%%
+
+\subsubsection{Remote Termination \& Object Deletion}
+
+For the \texttt{somax.player}, both of these are trivial. When the remote is terminated (through an explicit \texttt{terminate} message sent by the user through the \texttt{freebang} when the object is deleted), the \texttt{somax.player.core} will simply send the \texttt{terminate} message to the remote \texttt{OscAgent}, which terminates it and deletes it from the \texttt{SomaxServer}. When the object is deleted, the \texttt{somax.player.core} will deallocate its name and ports from their corresponding dictionaries (through the \texttt{somax.uniquename} and \texttt{somax.uniquenumber} abstractions in which they are stored).
+
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% PERIPHERALS
@@ -225,5 +274,5 @@ When the \texttt{somax.server} object deleted, the \texttt{freebang} is triggere
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\section{App Objects}\label{ssec:3-app-objects}
+\section{UI \& App Objects}\label{ssec:3-app-objects}
 \todo{source/target}

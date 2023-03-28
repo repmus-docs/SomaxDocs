@@ -1,0 +1,179 @@
+\chapter{Tutorials and Further Explorations}\label{sec:further}
+
+Somax2 opens up a new world of surprising and ever-evolving ways of interaction. 
+Here we have a few more suggestions, but we encourage you to explore the whole library and we hope you could achieve exciting results with it. 
+
+\section{Somax2 Overview patch}
+
+Starting from the `somax2.overview.maxpat' located in the root folder of Somax2, or in the /extras folder, and available from the Extras menu of Max, you can browse the vast set of resources included in the Somax2 distribution. 
+
+As shown in Figure \ref{fig:overview_tutos}, according to your needs, from here you can have quick access to tutorials for the Somax2 application, tutorials for the Somax2 Max objects, Performance Strategies and Templates, as well as a Help Center to have thorough information about any Somax2 object.
+
+\vspace{10mm}
+
+\begin{figure}[H]
+    \centering        
+ 	\includegraphics[width=1\textwidth]{img/somax2_overview.png}
+    \caption{The ‘somax2.overview.maxpat’ is the starting point for the Somax2 package. From here you can have access to the App Tutorials (first tab), Max Tutorials (second tab), Performance Strategies and Templates (third tab), Help Center (fourth tab), as well as a direct link to the project page.}
+    \label{fig:overview_tutos}
+\end{figure}
+
+
+\section{App Tutorials}
+
+From the first tab of the `somax2.overview' you will have access to two interactive tutorials that will guide you through the basics of the Somax2 application. 
+
+The first tutorial (`app1 - First Steps with Somax2.maxpat', see Figures \ref{fig:app1_overview} and \ref{fig:app1_interaction}) will give you an introduction to the Somax2 app objects, as described in Section \ref{sec:objects}. This tutorial is intended to walk you in the very first steps of using the Somax2 application and it will give you immediate access to a quick interaction, using both audio and MIDI.
+
+The second tutorial, `app2 - Audio Corpus Builder.maxpat' as shown in Figure \ref{fig:app2_audiocorpusbuilder}, will guide you to the usage of the audio corpus builder, to build a corpus from your own audio material and use it immediately in Somax2.
+
+Use these detailed tutorials for a quick dive into the application version of Somax2.
+
+\vspace{30mm}
+
+ \begin{figure}[H]
+    \centering        
+ 	\includegraphics[width=1\textwidth]{img/app1_overview.png}
+    \caption{The tutorial `app1 - First Steps with Somax2.maxpat' will give you a first overview of all the Somax2 app objects, and guide you through your very first steps.}
+    \label{fig:app1_overview}
+\end{figure}
+
+
+ \begin{figure}[H]
+    \centering        
+ 	\includegraphics[width=1\textwidth]{img/app1_interaction.png}
+    \caption{The tutorial `app1 - First Steps with Somax2.maxpat' will guide you through audio and MIDI basic interaction.}
+    \label{fig:app1_interaction}
+\end{figure}
+
+
+ \begin{figure}[H]
+    \centering        
+ 	\includegraphics[width=1\textwidth]{img/app2_audiocorpusbuilder.png}
+    \caption{The tutorial `app2 - Audio Corpus Builder.maxpat' will illustrate how to build an audio corpus from your own musical material, and use it immediately in Somax2.}
+    \label{fig:app2_audiocorpusbuilder}
+\end{figure}
+
+
+
+\section{Max Tutorials}
+
+From the second tab of the `somax2.overview' you will have access to seven detailed tutorials, that will guide you through the basic steps of using Somax2 Max objects. 
+
+These tutorials are distributed according to an incremental level of complexity, so we suggest that you follow them in their order, to understand and explore the deep world of possibilities that the Somax2 Max library can give you.
+Each tutorial has several tabs, to give you a full overview of both audio and MIDI, according to the covered topic.
+
+The following Figures will show you some brief extracts of these Max tutorial patches.
+
+
+
+
+\begin{figure}[H]
+  \centering
+  \subfloat[Basic audio demo]{\includegraphics[width=0.4\textwidth]{img/basic_audio_tuto.png}\label{fig:basic_audio}}
+  \hfill
+  \subfloat[Basic MIDI demo]{\includegraphics[width=0.4\textwidth]{img/basic_midi_tuto.png}\label{fig:basic_midi}}
+  \caption{The tutorial `max1 - Basic Workflow.maxpat' will give you the bases for audio and MIDI Max interaction.}
+\end{figure}
+
+\begin{figure}[H]
+    \centering        
+ 	\includegraphics[width=0.95\textwidth]{img/parameters_tuto.png}
+    \caption{The tutorial `max2 - Introducing Parameters.maxpat' will give you a first overview of using the interaction parameters, as described in Section \ref{sec:parameters}. These parameters are then deeply explored in the tutorial `max4 - Mastering Somax Interaction Parameters.maxpat'.}
+    \label{fig:parameters_tuto}
+\end{figure}
+
+\begin{figure}[H]
+    \centering        
+ 	\includegraphics[width=1\textwidth]{img/chaining_players_tuto.png}
+    \caption{The tutorial `max5 - Advanced Players Interaction.maxpat' shows how to achieve complex means of interaction, thanks to the modularity of the Somax2 Max library. In this particular example, a `somax.player' is used to influence another player.}
+    \label{fig:chaining_players_tuto}
+\end{figure}
+
+\begin{figure}[H]
+    \centering        
+ 	\includegraphics[width=1\textwidth]{img/ui_vs_app_tuto.png}
+    \caption{The tutorial `max7 - UI versus App.maxpat' will show you how to configure the .ui version of Somax2 objects to work exactly as the .app ones.}
+    \label{fig:ui_vs_app_tuto}
+\end{figure}
+
+
+
+\section{Performance Strategies}
+Once you have familiarized with the concepts explained in this document, and explored the different tutorials, we encourage you to try the performance strategies patches.
+
+These are ready-to-play patches that achieve specific Somax2 behaviours, like mimetism, harmonization or a never-ending installation mode. These behaviours are achieved through scripting the different Somax2 objects with initialization messages in Max, and have been specifically chosen from our team members' preferred configurations. You can find those patches in the /docs/tutorial-patches folder, or from the third tab of the `somax2.overview.maxpat'.
+
+The following Figures will give you an overview of these patches.
+
+\vspace{20mm}
+
+ \begin{figure}[H]
+    \centering        
+ 	\includegraphics[width=1\textwidth]{img/mimetism.png}
+    \caption{The patch `performance - Mimetism.maxpat' will give you immediate mimetic results between an audio influencer and a player.}
+    \label{fig:mimetism}
+\end{figure}
+
+\begin{figure}[H]
+    \centering        
+ 	\includegraphics[width=1\textwidth]{img/harmonization.png}
+    \caption{The patch `performance - Harmonization.maxpat' will let you use the harmonic material of a player to instantly harmonize a melodic audio influencer.}
+    \label{fig:harmonization}
+\end{figure}
+
+\begin{figure}[H]
+    \centering        
+ 	\includegraphics[width=1\textwidth]{img/installation.png}
+    \caption{Thanks to the `performance - Installation.maxpat' patch you could have an installative environment where the interaction between two players could potentially continue endlessly.}
+    \label{fig:installation}
+\end{figure}
+
+
+\section{Templates}
+In the /templates folder you can find four patches, already set up with configurations from one to four players, and ready to play. These patches use only the application objects of Somax2 and can be used as a test bench to try all the different Somax2 features in various players configurations, as well as a starting point to create your own patches. Choose one configuration that you like, copy all the objects in a new patch and have fun experimenting with your own new patch.
+
+ \begin{figure}[H]
+    \centering        
+ 	\includegraphics[width=0.7\textwidth]{img/templates.png}
+    \caption{Overview of the four different application template patches that provide easy access to configurations from one to four players.}
+    \label{fig:templates}
+\end{figure}
+
+\section{Help Center}
+
+\begin{figure}[H]
+    \centering        
+ 	\includegraphics[width=0.8\textwidth]{img/help_center.png}
+    \caption{From the fourth tab of the `somax2.overview' you will have access to an exhaustive Help Center. From here you can open the maxhelps of any Somax2 object, both as .app and Max versions. There is also a button to access a document listing all the possible Max messages you can use to control the different interaction parameters.}
+    \label{fig:help_center}
+\end{figure}
+
+\section{Credits}
+
+Somax2 is a totally renewed version of the Somax reactive co-improvisation paradigm born in the Music Representations Team at Ircam - STMS, a descendent of the well known OMax improvisation software.
+
+It is  part of the research projects ANR MERCI (Mixed Musical Reality with Creative Instruments) and ERC REACH (Raising Co-creativity in Cyber-Human Musicianship) directed by Gérard Assayag.
+
+\vspace{5mm}
+
+\noindent Somax 2.5  development by Joakim Borg, documentations and tutorials by Joakim Borg and Marco Fiorini.
+
+Somax  created  by Gérard Assayag and Laurent Bonnasse-Gahot, adaptations and pre-version 2 by Axel Chemla Romeu Santos, early prototype by Olivier Delerue.
+
+
+\vspace{5mm}
+
+
+
+\vspace{5mm}
+
+\noindent Thanks to Georges Bloch, Mikhaïl Malt and Marco Fiorini for their continuous expertise.
+
+\vspace{5mm}
+
+\noindent Thanks to Bernard Borron, Bernard Magnien, Carine Bonnefoy, Joëlle Léandre, Fabrizio Cassol, Marco Fiorini for their musical material used in Somax2 distribution corpus.
+
+\section{More and Contacting the Team}
+
+See project page at \url{http://repmus.ircam.fr/somax2} for info, help, demo videos, medias and various resources.

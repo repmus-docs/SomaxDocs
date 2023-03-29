@@ -258,21 +258,40 @@ For the \texttt{somax.player}, both of these are trivial. When the remote is ter
 
 
 \section{Peripherals}\label{ssec:3-peripherals}
+In the whole Somax architecture, 99\% of the development work revolves around the \texttt{somax.player} and \texttt{somax.server} objects and their associated Python code. Those objects are also the most difficult to get a good overview of, as it's not possible to understand exactly what's going on by reading the Python and Max code separately. It's also difficult to step through the code with a debugger, as there's no joint debugger for both Max and Python (it's obviously possible to step through individual function calls to Python, but that won't help with the overview. It's exactly for this reason that this document is written – to provide the developer with the overview that otherwise is difficult to achieve.
+
+Apart from the \texttt{somax.server} and \texttt{somax.player} object, there are however six more base objects of the Somax Max library (\texttt{somax.audioinfluencer}, \texttt{somax.midiinfluencer}, \texttt{somax.audiorenderer}, \texttt{somax.midirenderer}, \texttt{somax.audiocorpusbuilder} and \\ \texttt{somax.midicorpusbuilder}, a number of UI-based utility objects (e.g. \texttt{somax.pan2}, \texttt{somax.midioutput}, \texttt{somax.audioinput}, etc.), a number of compact UI-based  versions of the base objects (\texttt{somax.<object>.ui}), application-style ready-to use objects for users with little or no experience with Max programming (\texttt{somax.<object>.app})  as well as over 50 "package-private" abstractions, i.e. abstractions that are reused in several places in the Somax package but typically not relevant to the end user. 
+
+These objects are however typically small and self-contained in a more traditional sense, closely following the Max standard for abstractions, where all inputs and output are well-documented with no side effects or complex dependencies. An experienced Max developer shouldn't have to spend more than a minute or two to grasp the overview of any base, ui or app object apart from the \texttt{somax.server} or \texttt{somax.player}. Still, in the following sections, a couple of notes will be given on each of these objects for completeness.
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \subsection{Influencers}\label{ssec:3-influencers}
-- why: cannot handle real-time audio in python
+The \texttt{somax.audioinfluencer} and \texttt{somax.midiinfluencer} objects are responsible for segmenting and analyzing real-time audio / MIDI streams into discrete influences for the \texttt{Player.influence} function described in section \ref{ssec:2-player-functions}. This analysis procedure is more or less identical to the procedure for segmenting and analyzing the corpus (see section \ref{ssec:2-corpus}), but with fewer classifiers (only onset, pitch and chroma) and slightly different analysis algorithms (\texttt{bonk} for onset, \texttt{OMax.Yin+} for pitch and \texttt{ircamdescriptor~} for chroma in the audio case, and identical procedures as in the \texttt{CorpusBuilder} for MIDI). 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \subsection{Renderers}\label{ssec:3-renderers}
+The \texttt{somax.audiorenderer} and \texttt{somax.midirenderer} converts the \texttt{RenderingMessage}s that the \texttt{OscAgent} sends each time it plays a new slice into real-time audio / MIDi streams to output. 
+
+The MIDI renderer's implementation doesn't need any explanation, it's basically just a pass-through with some convenience functions to handle flushing in the case where the server crashes (or other cases of incorrect termination of a \texttt{somax.player}). 
+
+The audio renderer utilizes $N$ parallel \texttt{groove$\sim$} (through \texttt{mc.groove$\sim$}) objects rendering the same \texttt{buffer$\sim$}, in which the audio file corresponding to the corpus is loaded, with crossfades between them occurring each time an \texttt{audio event} message is received. The \texttt{somax.audiorenderer} will ignore the end time of the event and continue playing the buffer linearly until it receives a new \texttt{audio event} message or an \texttt{audio audio\_off}, in which case it will stop playing. If the \texttt{AudioStateHandler} (see section \ref{ssec:2-scheduling-handler}) determines that an event is a direct continuation of the previous event, it will rather output a \texttt{audio continuation} message, in which case no crossfade is necessary and the renderer will simply continue playing the buffer linearly. It will however use the time stretch information even for \texttt{audio continuation} events, in case the user has changed the tempo since the last event was received.
+
+This implementation is by no means perfect, all parallel $N$ \texttt{groove$\sim$} objects are playing all the time (even when they are muted) with possibly different time stretch and pitch shift factors, resulting in a high computational cost, which unfortunately is necessary since it typically takes 1-10 ms for a \texttt{groove$\sim$} to start playing once stopped. Also, if $N$ or more events are received within the threshold of the \texttt{release} parameter (default value: 150 ms), this is at risk of causing clipping issues in the audio. A typical renderer for granular or concatenative synthesis (e.g. \texttt{mubu.concat$\sim$}) would solve this issue, but currently there are no such renderers supporting per-grain time stretch / pitch shift. So unless an external is developed for this particular purpose, or \texttt{mubu.concat$\sim$} adds support for this, the current rendering strategy is likely the best one available.
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \subsection{Corpus Builders}\label{ssec:3-corpusbuilders}
+The \texttt{somax.audiocorpusbuilder} and \texttt{somax.midicorpusbuilder} are UI objects designed for building the corpus through the \texttt{somax.server}. They are essentially abstractions with a single purpose: to format and send the \texttt{build\_corpus} command to the \texttt{SomaxServer}. The corpus builders do not have their own OSC addresses, communication is done internally through the \texttt{somax.to\_server} (on which it sends the \texttt{build\_corpus} command from the \texttt{somax.server}) and \texttt{somax.from\_server} (on which it receives status updates while building as well as the path to the built corpus when complete). 
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\section{UI \& App Objects}\label{ssec:3-app-objects}
-\todo{source/target}
+\subsection{UI \& App Objects}\label{ssec:3-app-objects}
+As mentioned in section \ref{ssec:3-structure}, there are two additional variations on each of the base objects: \texttt{somax.<object>.ui} and \texttt{somax.<object>.app}. The \texttt{.ui} objects are just convenient wrappers around the base objects that can be used as bpatchers with a condensed UI.
+
+The \texttt{.app} objects encapsulate these \texttt{somax.<object>.ui} objects along with abstractions for audio / MIDI input and/or output when relevant (e.g. the \texttt{somax.audioinfluencer.app} has both an audio input abstraction, a \texttt{somax.audioinfluencer.app} and an audio output and an audio output abstraction). The \texttt{.app} objects also manage wireless routing of influences from influencers and any \texttt{somax.player.app} (which has influencers) to any other \texttt{somax.player.app} through the \texttt{somax.player.routing} abstraction. Internally, this is handled through the \texttt{source.<name>} addresses described in section \ref{ssec:3-global-state}.
+

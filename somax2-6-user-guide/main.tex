@@ -1,0 +1,97 @@
+\documentclass[11pt, a4paper]{report}
+\makeatletter
+\def\@makechapterhead#1{%
+  \vspace*{1\p@}%50
+  {\parindent \z@ \raggedright \normalfont
+    \interlinepenalty\@M
+    \Huge\bfseries  \thechapter.\quad #1\par\nobreak
+    \vskip 40\p@
+  }}
+
+
+\makeatother
+\usepackage[utf8]{inputenc}
+%\usepackage[document]{ragged2e}
+\usepackage{cite}
+\usepackage[english]{babel}
+\usepackage{amsmath}
+\usepackage{float}
+\usepackage{csquotes}
+\usepackage{url}
+\usepackage{hyperref}
+\usepackage{graphicx}
+\usepackage{amssymb}
+\usepackage{abstract} % Allows abstract customization
+\usepackage{fancyhdr} % Headers and footers
+\pagestyle{fancy} % All pages have headers and footers
+\usepackage{titling}
+\usepackage{hyperref}
+\usepackage{subfig}
+
+\usepackage[a4paper,margin=1in,footskip=0.25in]{geometry}
+
+\usepackage{listings}
+\usepackage{bera}	% Font for listings
+\lstset{basicstyle=\ttfamily\small,
+escapeinside={||},
+mathescape=true}
+\pagenumbering{arabic}
+\usepackage{bm}
+\usepackage{upgreek}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\usepackage{setspace}
+\usepackage[font=small,labelfont=bf]{caption}
+
+
+
+
+
+\fancyhead{} % Blank out the default header
+\fancyfoot{} % Blank out the default footer
+\fancyhead[C]{Somax2 User's Guide}
+\fancyhead[R]{\ifnum\value{page}<2\relax\else\thepage\fi}
+%\fancyfoot[C]{\thepage}
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\title{Somax2 User's Guide\\[0.24cm]
+	\large{version 2.6}}
+\author{Marco Fiorini}
+\date{\today}
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{document}
+\begin{titlepage}
+	\centering
+
+\includegraphics[width=0.5\textwidth]{img/somax_logo.png}\par\vspace{1cm}
+
+{\huge\bfseries Somax2 User's Guide\par}
+\vspace{20pt}
+{\large{version 2.6}}
+
+\vfill
+
+{\large \today\par}
+\end{titlepage}
+
+
+\tableofcontents
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%   DOCUMENT   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\input{introduction}
+\input{concepts}
+\input{objects}
+\input{interaction}
+\input{further}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\end{document}

@@ -1,0 +1,101 @@
+\chapter{Somax2 Concepts}\label{sec:concepts}
+
+Somax is an interactive system which improvises around a given musical material, aiming to produce a stylistically coherent improvisation while jointly listening to and adapting to live musical input . The system is trained on  musical material selected by the user, from which it constructs a 'corpus' that will serve as a basis for the improvisation. Somax can use either audio or MIDI files as its musical material (or a combination of the two), and it is able to listen and adapt to both audio and MIDI input from the external world. 
+
+Somax may serve as a co-creative agent in the improvisational process, where the system after some initial tuning is able to continuously listen and adapt to the musician in a self-sufficient manner. Of course, the input doesn't have to come from a live musician; any type of audio and/or MIDI input works, be it from an audio file, score editor, synthesizer, DAW, or another Somax player. Somax also allows detailed parametric controls of its output and can even be controlled as an instrument in its own right. Also, the system isn't necessarily limited to a single agent or a single input source - it is possible to create an entire ensemble of agents where the user can control how the agents listen to various input sources as well as to each other.
+
+The goal of this section is to provide a brief introduction to Somax and provide the reader with the fundamental knowledge about how its interaction model works, which in turn should serve as a basis for making informed choices when tuning and interacting with the system. For a hands-on introduction to Somax and its user interface, also see the interactive tutorials provided with the Somax distribution.
+
+\section{The Corpus and Navigation Model}
+As previously mentioned, the Somax system generates its improvisation material based on an external set of musical material, the «corpus». This corpus can be constructed from one or multiple MIDI files, or a single audio file, freely chosen by the user. In contrast to many other generative approaches, the system does not construct a model that eventually is independent of the material that was used to train it. Rather, the model is constructed directly on top of the original data and provides a way to navigate through it in a non-linear manner. One way of seeing this is to consider that some fine-grained aspects of the musical stream are somehow too complex to be modeled, but will be preserved – to a certain extent – when weaving into this musical material.
+
+In order for Somax to build a corpus from given music material, the first step is to segment the musical stream into discrete units or «slices», which are vertical (polyphonic) segments of the original file, where the duration of a slice is the distance between two note onsets.\footnote{In non-quantized MIDI files it is rare for any two notes that are perceived as simultaneous to be exactly simultaneous. Since one goal of Somax is to be able to maintain and reproduce the original timings within slices as recorded, notes with almost simultaneous onsets will still be grouped together in a single slice but with their internal timing offset preserved.} Each slice is analyzed and classified with regards to a number of musical features related to its harmony/texture, individual pitches, dynamics, etc., and these features along with the pattern structure they infer over the musical sequence will serve as the main basis for controlling the  navigation model. Thus a navigation model is made of  a musical memory (basically the corpus), plus a  dynamic pattern matching and selection  scheme to navigate into memory and reconstruct a generative signal.
+Slicing is illustrated in figures \ref{fig:segmentation} in the case of MIDI, where the polyphony is broken down in vertical columns with ties between notes, prior to analysis and classification of the content. This representation allows to weave back the polyphonic structure at generation time.
+ \begin{figure}[h!]
+    \centering        
+ 	\includegraphics[width=0.95\textwidth]{img/segmentation.png}
+    \caption{Constructing a corpus by segmenting MIDI data into «slices».}
+    \label{fig:segmentation}
+\end{figure}
+
+The procedure of mapping  memory with patterns is actually repeated for each music feature (harmony, melody etc.) in the analysis, effectively resulting in a multilayer representation where each layer roughly corresponds to one feature, i.e., one layer for harmony, one for pitch, etc. 
+
+When a musician interacts with the system, a similar process of segmentation and multilayer analysis and classification is computed in real-time on the input stream, and at each point in time the result of this process is matched to  the information in the navigation model, generating activations, or «peaks», at certain points in the sequential memory  where the input corresponds to the model. Each peak corresponds to a point in the memory, so the entire set of peaks can effectively be seen linearly as a one-dimensional curve over the corpus' time axis (see Figures \ref{fig:peakdecay} and \ref{fig:peakmerge}  below for examples). The peaks in each layer are merged and scaled  according to how the system has been tuned, and finally the output slice is selected from the sequential memory based on the distribution of the peaks, typically at a location that is a good match  with the overall context at this particular moment.
+
+ \begin{figure}[h!]
+    \centering        
+ 	\includegraphics[width=1\textwidth]{img/navigation_model.png}
+    \caption{An overview of the steps through which the system generates its output at each given point in time.}
+    \label{fig:navigation_model}
+\end{figure}
+
+The generated output of this process is a co-improvisation that recombines existing material in a way that is coherent with the sequential logic and statistical properties of the original material while at the same time adapting in real-time to match the input from the musician. This is because the multilayer peak profiles is shaped not only by  the input, but also by the output of the navigation itself, which is called "self-listening". Self-listening conditions its own set of layers, that combine in turn with external listening ones. This  process of attempting to balance the internal logic of the corpus with the external logic of the musician often provides a mix of coherency and unexpectedness in a way that convincingly gives the impression of an active agent in the improvisational process.
+
+\section{Interacting with Somax2}
+
+When interacting with Somax2, there are three main concepts that are important to understand: «slices», «influences» and «peaks».
+
+\subsection{Slices}
+A slice, as previously mentioned, is a short segment of the corpus and serves as the smallest building block of the output of the system. The slice can be manipulated to some extent (transposed, filtered with regards to voices/channels, stretched etc.) but will always maintain most fundamental properties of the original corpus. 
+
+\subsection{Influences}
+When Somax listens to a musician, this musical stream is segmented and analyzed with respect to its musical parameters similarly to how the corpus was constructed, but with a slightly different set of methods to be able to operate in real-time. The result of this process are discrete chunks of multilayer data or «influences», which the system uses to be able to compare the input to the memory, where the main purpose of the influence is to act as the guide that determines the output of the system. The concept of an influence may initially seem like an implementation detail, but will become increasingly important for more complex configurations with multiple agents and/or multiple input sources. The main takeaway is that the system cannot listen directly to a musical input stream, but will need to translate it into influences, and that the process of tuning the listener can be a very important factor for the quality of the co-improvisation. Thus influences are the main data that circulate between the Somax agents, hence the names `audioinfluencer' and `midiinfluencer' for the input modules. Typically, a Somax Player "listens" to a certain amount of cumulated influences (audio inputs, MIDI inputs, other agents' productions) and takes decisions based on these influences.
+
+\subsection{Peaks}
+Finally, a «peak» is, again, a point in the corpus where the input corresponds to the model, or simply a match between an incoming influence and a corresponding slice that would serve as an output candidate. Each peak has a height, corresponding to a probability (or viability) of that particular slice as an output candidate. Unlike influences (which are visible in the interface) and slices (which are correlated to the audible output of the system), peaks are never interacted with directly, they're only part of the internal state of the system, but perhaps the most vital part. Each peak effectively corresponds to a slice in the corpus that could serve as an output at the current point in time, given the latest influence. Having at each point in time a reasonable number of peaks is thus vital for the quality of the output, since having no peaks means that the output has not taken the musician's influences into account, and on the opposite side, in most cases a large number of peaks indicate that the matching is imprecise. 
+
+\subsection{Putting all together}\label{sec:all_together}
+To put the concept of peaks in context, let's dive a bit deeper in how the system works. While the musician is playing, Somax is at each detected onset segmenting / analysing the input into influences, carrying information about the pitch, harmony, etc. of what the musician currently is playing. This process is carried out by agents of the system called «influencers». This information is routed to a «player», which handles the entire process of matching and generating output. The influence is routed in multiple layers by the player, as briefly mentioned, where each layer corresponds to one musical dimension (e.g. harmony, melody) of the influence. In each layer, a model of the corpus with respect to the particular layer's musical dimension exists, and upon receiving an influence, the model will look for sequences in the corpus that match the sequence of most recent influences from the input, and, in each of those places,  insert new peaks. 
+
+ \begin{figure}[h]
+    \centering        
+ 	\includegraphics[width=0.85\textwidth]{img/peaks_decay.png}
+    \caption{The process of shifting and decaying previous peaks in a single layer upon receiving new influences (the process of matching the incoming influence to the corpus has been omitted for clarity).}
+    \label{fig:peakdecay}
+\end{figure}
+
+The system is also simulating a type of short-term memory inside this model by not immediately discarding peaks from previous influences, but rather shifting them along the time axis of the memory and decaying their height corresponding to the amount of time that has passed, followed by merging them with the new incoming set of peaks. This means that sequences continuously matching several consecutive influences will be more highly prioritized over others, as illustrated in Figure \ref{fig:peakdecay}. Another powerful property of this system is that it allows some form of fuzzy pattern recognition since positions that are not perfect matches at time $t$, can still become good matches at time $t + i$, due to the propagation mechanism. Finally, the peaks from all layers will be merged together into a single set of peaks which the system will use to probabilistically determine which slice is the best output candidate\footnote{Actually, in addition to this, there are a number of parameters that scale the height of the peaks individually with regard to a number of other musical parameters of choice, but this is thoroughly documented in the help files and tutorials in Max and will not be discussed here}. The result of this multilayer peak merging process is an output that will not just strictly match the harmony and pitch of the influence but rather improvise around the most recent history of influences with regards to the corpus own structure, with both fidelity and agency. In addition, as already said, there are also two layers which listens to the output of the player itself, as feedback layers, that can be used to balance the player's consistency with the input with its continuity in its own performance. The balance between the different layers as well as control over the shift/decay time of old peaks, length of sequences to match in the memories, etc. are all available in the `somax.player.app' and `somax.player.ui' user interface, as shown later in Section \ref{sec:objects}. 
+
+ %\begin{figure}[h]
+ %   \centering        
+ %	\includegraphics[width=0.33\textwidth]{img/atoms_ui_2-5.png}
+ %   \caption{User interface to control the balance between the dimensions, length of matching sequences for each dimension as well as decay time of peaks.}
+ %   \label{fig:atomui}
+%\end{figure}
+
+ \begin{figure}[h]
+    \centering        
+ 	\includegraphics[width=0.8\textwidth]{img/peaks_merge_2-5.png}
+    \caption{The four layers of peaks corresponding to different musical dimensions such as internal melody, internal harmony, external melody and external harmony, being merged into one set of peaks before the final scaling and peak selection. Here, all four layers are weighted equally, but it is possible to balance the contribution from each of the layers.}
+    \label{fig:peakmerge}
+\end{figure}
+
+If the concept of peaks isn't perfectly clear to you after reading this – don't worry! Go to the tutorials and start experimenting with the system while keeping one thing in mind: if the number of peaks is continuously zero or continuously too high\footnote{exactly how large "too high" is varies with the type of layer and context, but larger than 10\% of the total number of slices in the corpus with no transpositions active could serve as a reference of "too high" that is valid for most layers and contexts}, this is likely an indicator that the system is working poorly and should be retuned. If not – you're probably doing quite well.
+
+Another important aspect of the interaction with Somax is its relation to time. According to the user's preference, each player can be assigned to either operate continuously in time as an autonomous agent, maintaining the pulse and exact within-slice timings of the original corpus (while possibly adapting to the tempo and/or phase of the input), or operate reactively, generating output synchronously as requested by the input's events. In the continuous case, this means that the player improvises freely over time while still taking the influences of the musician into account, while in the reactive case, it synchronizes strictly (note-by-note) or loosely (depending on tuning) with the input. Of course, the player is in the latter mode not strictly limited to the input from where it receives its influences, but could be connected to a third source of some sort, for example any type of step-sequencer or other generative approaches, thus giving the user multiple options for controlling the temporal domain of the system.
+
+\section{Somax2 User Interface}
+
+Understanding the generation and interaction concepts presented above only from a theoretical standpoint might seem pretty difficult. But thanks to the user interface provided by the Somax2 application objects, you can have immediate hands-on and start playing with Somax2 right away.
+In Figure \ref{fig:somax2_ui} you could see the basic objects of the Somax2 application. These are:
+\begin{itemize}
+    \item the Server;
+    \item the Player;
+    \item the Audio Influencer;
+    \item the MIDI Influencer.
+\end{itemize}
+
+
+
+
+\begin{figure}[H]
+    \centering        
+ 	\includegraphics[width=0.45\textwidth]{img/somax2-6.png}
+    \caption{The `somax2.maxpat' included in the distribution gives you quick access to all the objects in the Somax2 application: server, player, audio influencer and MIDI influencer.}
+    \label{fig:somax2_ui}
+\end{figure}
+
+This is of course just one possible configuration of the Somax2 objects, as a big advantage of this application is that each object communicates with each other in a wireless way, without the need of patch chords. In this way you can easily adapt the patches at your need, and build your own configuration without having to worry about messy patch cables.
+
+In the next Section we are going to break down these application objects, giving an overview of all of them, as well as explaining their main parameters of interaction.
+

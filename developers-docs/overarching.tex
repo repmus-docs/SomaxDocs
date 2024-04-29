@@ -1,0 +1,65 @@
+\chapter{Real-time Recording}\label{sec:4-realtime-recording}
+Recording a corpus in real-time is a special case that is difficult to categorize as either a part of the Max architecture or the Python architecture, as it so heavily relies on both. Unlike most behaviours described in chapters \ref{sec:2-python-architecture} and \ref{sec:3-max-architecture}, real-time recording requires constant back and forth communication, where the Max architecture records audio into a buffer, sends information to the remote player, which validates it and stores a new corpus event, and returns this information before the next event can be recorded. 
+
+\todo{In-depth description of real-time audio recording}
+
+
+\section{Latency Correction}\label{ssec:4-latency-correction}
+
+As described in the previous sections\todo{not described yet}, there are two main mechanisms involved when recording audio with the \texttt{somax.audiorecord} object: the underlying \texttt{record} object, which records the incoming audio into the associated \texttt{buffer}, and the \texttt{somax.audioinfluencer}, which provides the information about segmentation and annotations of the content in the buffer. 
+
+The problem is that these two are not perfectly aligned. For pitch-based segmentation (\texttt{OMax.Yin+}), the latency $\gamma \in \mathbb R$ (in ms) between the true onset of a signal and the analyzed onset is expected to be $2T + w$, where $T \in \mathbb R$ is the period of the minimum frequency (as specified by the user) and $w \in \mathbb R$  is the length of the window used by the algorithm (again, as specified by the user). For onset-based segmentation (\texttt{bonk}), the latency is a non-zero constant.
+
+ \begin{figure}[h!]
+    \centering        
+ 	\includegraphics[width=0.99\textwidth, keepaspectratio]{figures/latency2.png}
+    \caption{latency of analysis in relation to the audio buffer}
+    \label{fig:4-latency1}
+\end{figure}
+
+
+Consider the example in figure \ref{fig:4-latency1}. The upper image illustrates an audio signal with four onsets recorded into a buffer (the box corresponds to the whole buffer, but data has only been recorded in the first half), with red lines drawn where the onsets occur. The blue line indicates the end of the currently recorded segment. The lower image illustrates the onsets as they were recorded. There are a number of things to note here. 
+
+First of all, \todo{"As should have been described earlier"} there cannot be any gaps in the buffer that don't correspond to a event. For this reason, the onset of event $\mathcal E_{i+1}$ should always correspond to the sum of the onset and duration of event $\mathcal E_i$, or more formally
+$$
+o_{i+i} = o_{i} + d_i
+$$
+where $o_i \in \mathbb R$ denotes the onset time of event $\mathcal E_i$, and $d_i \in \mathbb R$ denotes the duration of said event. In practice, \todo{This should already have been explained} this means that event $\mathcal E_i$ is not recorded until onset $o_{i+1}$ is registered.
+
+Secondly, the first onset in each recorded segment will always be perfectly aligned with the buffer. This follows from the first statement; as there cannot be any gaps in the buffer, the the first detected onset (prior to latency correction, see below) will be considered as the \text{end} of the first recorded event (where the start of said event is the start of the recorded segment).
+
+Thirdly, \todo{This should also have been described already} the final segment will only be recorded if the \texttt{appendend} option of the \texttt{somax.audiorecord} object is enabled. If this is the case, the last event will be recorded with a duration corresponding to the exact position of the end of the recorded segment (blue line in figure \ref{fig:4-latency1}). If this option is disabled, the part of the buffer between the last onset and the end of the recorded segment will be discarded (and overwritten in subsequent recording segments), and the last recorded event will be $\mathcal E_2$, as illustrated in figure \ref{fig:4-latency2}.
+
+ \begin{figure}[h!]
+    \centering        
+ 	\includegraphics[width=0.99\textwidth, keepaspectratio]{figures/latency3.png}
+    \caption{Latency of analysis in relation to the audio buffer with the \texttt{appendend} option disabled.}
+    \label{fig:4-latency2}
+\end{figure}
+
+Finally, there are no guarantees that the latency is constant between two events, as the user may change the parameters of the algorithm for onset detection or switch to a different algorithm while recording.
+
+Following these statements, we can define $\hat{o_i}$ and $\hat{d_i}$ as the estimated true onsets of event $\mathcal E_i$, as well as $o_i^\ast$ and $d_i^\ast$ which denote the estimated onset and duration of the same event, and finally the latency $\gamma_i$, which correspond to the latency sampled at the end of event $\mathcal E$. The relationship between the true (latency corrected) onsets and duration are for a recorded segment with events $\mathcal E_{j_0} \dots \mathcal E_{j_N}$ then given as follows:
+
+\begin{equation}
+\hat{o_i} = 
+	\left\lbrace\begin{array}{lll}
+		o_i^\ast & \text { if } & i = j_0 \\
+		o_i^\ast - \gamma_{i-1} & \text{ if } & i = j_N \wedge \text{ \texttt{appendend}} \\
+		o_i^\ast - \Delta\gamma_i & \text{ otherwise }
+	\end{array}\right.
+\end{equation}
+
+and 
+
+\begin{equation}
+\hat{d_i} = 
+	\left\lbrace\begin{array}{lll}
+		d_i^\ast - \gamma_i & \text{ if } & i = j_0 \\
+		d_i^\ast - \gamma_i & \text{ if } & i = j_N \wedge \text{ \texttt{appendend}} \\
+		d_i^\ast - \Delta\gamma_i & \text{ otherwise}
+	\end{array}\right.
+\end{equation}
+where $\Delta \gamma_i = \gamma_i - \gamma_{i-1}$. The onset, duration and latency are stored in the \texttt{somax.audiorecord} object, but the latency correction computation is handled by the \texttt{RealtimeRecordedAudioCorpus} class.
+
+

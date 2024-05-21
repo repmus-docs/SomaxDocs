@@ -1,0 +1,132 @@
+\chapter{Mastering Somax2 Interaction}\label{sec:interaction}
+
+\section{Basic Workflow}
+
+Based on the theoretical model previously described in Section \ref{sec:concepts}, the basic workflow of interacting with the Somax2 system, as shown in Figure \ref{fig:workflow}, unfolds as following:
+
+\begin{itemize}
+    \item Somax2 generates its improvisation material based on an external set of musical material, the «corpus». This corpus can be constructed from one audio or MIDI file freely chosen by the user, thanks to the dedicated corpusbuilder objects. The constructed corpus is then stored in a bigger database called corpora, accessible by the Player from a corpuspath folder. So, the corpus is the actual musical material loaded into a Player.
+    \item The Audio and MIDI Influencers listen to a continuous stream of audio or MIDI input data (from any type of source, including live musicians) and segments it temporally, where each slice is analyzed with respect to onset, pitch and chroma, which then is sent to the Player. Thus, the influences are the triggers for the co-improvisational behaviour of the Player.
+    \item The Player is the main agent of Somax2. It listens to the influencers and, based on that, it recombines the content of the corpus, generating some output.
+    \item The Server is the core of Somax2, handling all the scheduling and communication with the background Python app and all instances of somax.player through OSC. It will open in an external window when you launch it.
+    \item The `somax.player' does not play back, it only provides a list of sequential events. Playback is handled independently via the somax.audio/midi renderer objects (or by implementing your own sequencer/playback patch). However, if you use the `somax.player.app' object, rendering and playback of the output is handled here, as this is a ready-to-play application object.
+
+\end{itemize}
+
+ \begin{figure*}[h!]
+    \centering        
+ 	\includegraphics[width=1\textwidth, keepaspectratio]{img/somax_workflow.png}
+    \caption{Basic Workflow of the Somax2 system.}
+    \label{fig:workflow}
+\end{figure*}
+
+
+\subsection{Interaction Parameters}\label{sec:parameters}
+
+While the `somax.player' has a wide set of parameters, fully documented in the «parameters» tab of the `somax.player.app.maxhelp', the `somax.player.ui' gives you access to a selection of main parameters, as shown in Figure \ref{fig:player_ui}, and described in the following section. 
+
+ \begin{figure}[h]
+    \centering        
+ 	\includegraphics[width=0.4\textwidth, trim=0 0 0 5, clip]{somax2-6-user-guide/img/player_compact_regions.png}
+    \caption{The user interface of `somax.player.ui' shows a set of main parameters to control the interaction.}
+    \label{fig:player_ui}
+\end{figure}
+
+\subsubsection{Playing Mode}
+Controls the player's mode:
+\begin{itemize}
+    \item Reactive: Output will be triggered whenever the player receives input from an influencer (note-by-note);
+    \item Continuous: Output will be triggered continuously regardless of input.
+\end{itemize}
+
+\subsubsection{Timeout}
+In reactive mode, this option controls whether the player should continue playing if no new trigger has arrived by the time the player has finished playing its current event. 
+Setting this to a non-zero value will make the player continue for that number of seconds. 
+It's also possible to disable this to make the player continue endlessly.
+
+\subsubsection{Continuity}
+Continuity controls the order of the current state index of the player's output:
+\begin{itemize}
+    \item Continuity > 1 will prioritize continuation (and result in fewer jumps);
+    \item Continuity = 1.00 will result in no alterations (no bias introduced by this parameter);
+    \item Continuity < 1 will prioritizing jumping.
+\end{itemize}
+
+\subsubsection{Quality / Sparse}
+The «Quality» Threshold sets a minimum score required for a match to qualify as output. 
+When combined with «Sparse», this will ensure that no events are played unless they are considered good matches.
+
+If «Sparse» is On:
+\begin{itemize}
+    \item quality 0.0 plays any found match;
+    \item quality 1.0 will almost never play;
+    \item in-between values will act as a threshold, to select matches above this threshold and play them.
+\end{itemize}
+
+\noindent If «Sparse» is Off, it will replace the voids (no-play) by a default event, generally the next event, or a jump resulting from self-influence.
+
+\subsubsection{Cut}
+In reactive mode, output is generated each time a new trigger (onset) arrives. If the player is in the middle of playing an event when a trigger arrives, «cut» controls whether the currently played event should be interrupted or not:
+
+\begin{itemize}
+    \item Allowed: Interrupt the current event and trigger the new event immediately when the new trigger arrives.
+    \item Not Allowed: Delay the trigger so that the new event starts playing once the current event has been completed.
+\end{itemize}
+
+\subsubsection{Probability}
+It will condition each generated output with a probability, so that it may or may not play the event. This parameter is inactive when set to 1.0 (off), but any value lower than 1.0 will result in less than 100\% of the events being played. For example, when set to 0.2, only 20\% of the generated events will be played
+
+\subsubsection{Internal and External Influences}
+Control the balance between different internal and external type of influences (layers).
+As it can be seen in Figure \ref{fig:atomui}, the four colors (green, purple, red, blue) correspond to the four different layers introduced in Section \ref{sec:all_together}:
+
+\begin{itemize}
+    \item Green (internal melody): The feedback layer which listens to the melody (pitch) of the previous output of the player itself;
+    \item Purple (internal harmony): The feedback layer which listens to the harmony (chroma) of the previous output of the player itself;
+    \item Red (external melody): The melody layer which listens to melodic (pitch) influences from exernal sources (audio/MIDI influencers);
+    \item Blue (external harmony): The harmony layer which listens to harmonic (chroma) from external source (audio/MIDI influencers).
+\end{itemize}
+
+ \begin{figure}[h]
+    \centering        
+ 	\includegraphics[width=0.33\textwidth]{img/atoms_ui_2-5.png}
+    \caption{User interface to control the Balance between the dimensions, length of matching sequences for each dimension as well as decay time of peaks (Memory lengths).}
+    \label{fig:atomui}
+\end{figure}
+
+\subsubsection{Beat Alignment}
+When enabled, the player will use a beat alignment alogrithm to output events from the corpus that match a specific beat phase. This beat phase is a cyclic value between 0. and 1. representing the position of a certain event in the beat grid.
+This filter can be enabled in the main somax.player.app ui, but its control are avaiable by opening the Settings full window:
+
+\begin{itemize}
+    \item Type: choose between Hard Filter and Soft Filter, to set the strength of the Beat Alignment algorithm. 
+
+    \item Hard Filter: remove all peaks that don't match the beat phase entirely and taboo any corpus event not matching the beat phase, meaning that if there are no peaks, the fallback mechanisms of Somax will rather play nothing than play an event out of phase. 
+
+    \item Soft Filter: do not remove any peaks, but scale those that don't match the beat phase by this amount. This means that events out of phase will be less likely to be played, but never completely removed. 
+
+    \item Grid Size: The number of steps each beat should be subdivided in. 
+\end{itemize}
+
+\subsubsection{States and Region Filter} 
+The last state that was output is visualized in the lower part of the interface, as well as a Region Filter to select the desired ranges of states (regions) you want the player to jump to. 
+
+ \begin{figure}[h!]
+    \centering        
+ 	\includegraphics[width=0.45\textwidth]{somax2-6-user-guide/img/region_filter.png}
+    \caption{This part of the player's interface shows the last output state, as well as the region filter (if enabled).}
+    \label{fig:state}
+\end{figure}
+
+\subsubsection{Number of Matches}
+The green, purple, red and blue indicators (see Figure \ref{fig:peaks} shows the number of matches in each layer. Note that this may contain overlapping matches. The white indicator shows the total number of matches when all layers have been merged. The merged result will not contain duplicates, and will in most cases be lower than the sum of the individual layers. Here you have also a visual feedback of the occurrence of a match or not, through the «Match» light. If green, a match occurred and is being played, if red, you don't have a match, if yellow, the player is playing a default sequence, generally linear, which happens either because there is no match — but Sparse is Off , so it defaults to the fallback behaviour — or because it is playing the time-out sequences.
+
+ \begin{figure}[h!]
+    \centering        
+ 	\includegraphics[width=0.45\textwidth]{somax2-6-user-guide/img/matches.png}
+    \caption{While the user doesn't interact directly with the peaks, they are still indicated in the user interface.    Here, the colors green, purple, red, blue and white correspond to the number of peaks in the internal feedback layer (green: pitch, purple: harmony), external pitch layer (red), external harmonic layer (blue), and total number of peaks after merge (white) .}
+    \label{fig:peaks}
+\end{figure}
+
+
+

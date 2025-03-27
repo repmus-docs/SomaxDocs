@@ -1,0 +1,125 @@
+\chapter{Somax2 for Max}\label{sec:introduction}
+
+\section{Introducing Somax2}
+
+Somax2 is an application for musical improvisation and composition using AI with machine listening, cognitive memory activation model, multi-agent architecture, full application interface to agent patching and control, and full Max library API. It is based on a generative AI model to provide real-time machine improvisations coherent both with the internal selected corpus styles and with the unfolding external musical context. Somax2 handles both MIDI and audio input, corpus memory, and output. The model can be used with little configuration to let its agents autonomously interact with musicians (and one with another), but it also allows a variety of manual controls of its generative process and interaction strategies, effectively letting one use it as a fully flexible smart instrument.
+
+%Somax2 is an application and a library for live co-creative interaction with musicians in improvisation, composition or installation scenarios. 
+%It is based on a machine listening, reactive engine and generative model that provide stylistically coherent improvisation while continuously adapting to the external audio or MIDI musical context. 
+%It uses a cognitive memory model based on music corpora it analyses and learns as stylistic bases, using a process similar to concatenative synthesis to render the result, and it relies on a globally learned harmonic and textural knowledge representation space using Machine Learning techniques.
+
+Somax2 has been totally rewritten from Somax, one of the multiple descendant of the well known Omax developed in the Music Representation team over the years and offers now a powerful and reliable environment for co-improvisation, composition, installations etc.
+Written in Max and Python, it features a modular multi-threaded implementation, multiple wireless interacting players (AI agents), new UI design with tutorials and documentation, as well as a number of new interaction flavors and parameters.
+
+In addition to a self-contained app patch, it is also now designed as a Max library, allowing the user to program custom Somax2 patches for everybody to design one's own environment and processing, involving as many sources, players, influencers, renderers as needed (these objects will be explained further). With these abstractions, implemented to provide complete Max-style programming and workflow, the user could achieve the same results as the Somax2 application but, thanks to their modular architecture, it is also possible to build custom patches and unlock unseen behaviours of interaction and control.
+
+This guide will take you through the general philosophy and process of Somax2, then present the Somax2 core objects. In order to quickly learn the basic use of Somax2, please go through the `somax2.overview.maxpat' that you'll find in the Somax2 folder.
+
+Get more info, help and resources (demos, medias, discussions etc.) at the Somax2 research project page: \url{http://repmus.ircam.fr/somax2} .
+
+\section{Getting Ready}
+
+\subsection{Requirements}
+
+\begin{itemize}
+    \item macOS 10.13 or later / Windows 10+;
+    \item Max 8.6 or later / Max 9.0.3 or later;
+    \item (Python 3.9 or later -- only needed for manual installation).
+\end{itemize}
+
+macOS: Note that the first time you launch Somax, depending on your security settings you may be presented with a number of dialogues asking you to give permission to a number of externals (shell, bonk, ircamdescriptor, bc.virfun and bc.yinstats) that Somax requires to be able to run. You may also be asked for permission the first time you launch the server (this step is explained in the tutorial). Accept each of those to proceed.
+
+Note: Somax2.6 runs natively on ARM processors (Apple M1, M2, M3), there's no need to run Max under Rosetta (see \url{https://docs.cycling74.com/max8/vignettes/apple_arm64}).
+
+\subsection{Installation}
+
+\subsubsection{Easy Installation}
+
+This is the procedure recommended for most users, unless you explicitly want to modify the python code.
+
+\begin{itemize}
+    \item Go to Releases at \url{https://github.com/DYCI2/Somax2/releases} and download the latest version of Somax2 (Somax-2.x.x.dmg);
+    \item Copy the extracted /Somax-2.x.x folder  into the /Packages folder in your Max folder (by default, this is /Documents/Max 8/Packages).
+\end{itemize}
+
+\subsubsection{Manual Installation}
+
+If you want to modify the python code, you will need a manual installation. This assumes you already have python 3.9+ installed.
+
+\subsubsection{Step 1: Install Somax}
+
+\begin{itemize}
+    \item Clone the master branch of the repository at \url{https://github.com/DYCI2/Somax2} or go to Releases at \url{https://github.com/DYCI2/Somax2/releases} and download the latest version of the Somax source code;
+    \item Add the max/somax subfolder of /Somax-2.x.x to your Max path through Options -> File Preferences in Max. Make sure that the `subfolders' option is checked.
+\end{itemize}
+
+\subsubsection{Step 2: Install Python Requirements}
+
+\begin{itemize}
+    \item In a terminal, cd to the /Somax-2.x.x root folder and install the requirements with \texttt{`pip3 install -r python/somax/requirements.txt'}.
+\end{itemize}
+
+
+
+\subsection{What's in the package}
+
+The Somax2 distribution contains many files and folders, among them some important ones are:
+
+\begin{itemize}
+    \item /corpus: folder with all the distributed Somax2 set of corpus;
+    \item /docs: folder for tutorial patches and ready-to-play performance strategies;
+    \item /externals: folder for the externals used inside Somax2;
+    \item /extras: here you will find the `somax2.overview.maxpat', the patch that will help you start exploring everything;
+    \item /help: folder for the maxhelp files related to every Somax2 abstraction;
+    \item /patchers: the actual Max patches that constitute Somax2;
+    \item somax2.maxpat: application patch for Somax2, with one player;
+    \item somax2.overview.maxpat: the overview patch that will guide you anywhere you need;
+    \item /templates: folder for the template patches from one to four players.
+\end{itemize}
+
+\noindent To start diving into the world of Somax2, we encourage starting by taking a look at the following sections, and using the \sloppy{`somax2.overview.maxpat'} as the main guide to redirect you wherever you need.
+
+\subsubsection{Somax2 Overview}
+
+Located in the Somax2 root folder, or in the /extras folder, the `somax2.overview.maxpat' is the starting point to begin exploring the  world of Somax2. 
+As shown in Figure \ref{fig:overview}, from here you will be able to access all the different tutorials, as well as to get access to ready-to-play patches defining specific performance strategies. Templates from one to four players are also available, as well as maxhelps for all the Somax2 objects.
+
+ \begin{figure*}[h!]
+    \centering        
+ 	\includegraphics[width=1\textwidth, keepaspectratio]{img/somax2_overview.png}
+    \caption{The `somax2.overview.maxpat' is the starting point for the Somax2.5 package.}
+    \label{fig:overview}
+\end{figure*}
+
+\subsubsection{App Tutorials}
+
+Accessible from the `somax2.overview.maxpat', but also available in the 
+
+/docs/tutorial-patchers folder, the three tutorial patches:
+\begin{itemize}
+    \item app1 - First Steps with Somax2.maxpat\footnote{Video Tutorial: \url{https://www.youtube.com/watch?v=6Azyt_5C6KQ}}
+    \item app2 - Audio Corpus Builder.maxpat\footnote{Video Tutorial: \url{https://www.youtube.com/watch?v=p4nUd5pot4w}}
+    \item app3 - Script your Environment.maxpat
+    \item app4 - Save and Load Presets
+    \item app5 - Using Custom Labels
+\end{itemize}
+
+that will guide you through the basics of the Somax2 application, and teach you how to customize your patch and script the different Somax2 objects through Max messages.
+
+\subsubsection{Max Tutorials}
+
+Different patches will guide you through the usage of the Somax2 Max library. These tutorials will start by reviewing the very basic Max workflow of the Somax model, and incrementally move to complex ways of interaction, thanks to the modular architecture of the Somax2 abstractions. Find these from the `somax2.overview.maxpat' patch or in the /docs/tutorial-patchers folder.
+
+\subsubsection{Performance Strategies}
+
+Three ready-to-play patches will showcase specific behaviours of interaction of Somax2, from mimetism and harmonization strategies to installative modes. Available from the `somax2.overview.maxpat' or in the /docs/tutorial-patchers folder.
+
+\subsubsection{Templates}
+
+In the /templates folder you will find four Somax2 application patches, already configured with a range of one to four Players.
+Use these templates as the starting point of your Somax application patches.
+
+\subsubsection{Help Center}
+
+From the Help Center tab of the `somax2.overview.maxpat' or in the /help folder you will get access to specific and detailed maxhelp files for the Somax2 abstractions. Use these when you have any doubts. 
+

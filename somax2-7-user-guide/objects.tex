@@ -1,0 +1,397 @@
+\chapter{Somax2 Objects}\label{sec:objects}
+
+\section{Somax2 Architecture}
+The new Somax2 has been redesigned both as a Max application and a Max library. Almost every object in the package has a `core' version and an `.app' version (i.e., `somax.player' and `somax.player.app'). 
+
+As their names say, core objects are pure Max abstractions, intended for users that want to use Somax2 in a fully Max-like programming style. 
+
+On the other hand, .app objects are abstractions providing a user interface to control the parameters, as well as other utility tools to immediately use the abstractions. They are really wrappers around the core objects (that are still contained inside any .app object) that provide the users instant access to a nice interaction, while maintaining the modularity of the core objects. 
+Only .app objects appear in the `somax2.maxpat' application that most people will use, unless they are skilled Max programmers and wish to build their own custom application patch.
+
+Some of the objects have also a `.ui' version (i.e., `somax.player.ui'), which is a compact user interface version of the core object, and that could be used as an alternative to this one. Note that the .ui objects doesn't have the same utilities as the .app objects, and therefore they cannot be used as ready-to-play objects, but rather they are intended as visual feedback alternatives to the core objects. Since .ui objects are included in .app objects they will also serve in the following to show and explain some of the .app user interface details.
+
+This chapter is intended to give you a brief overview of the main Somax2 objects in both the core and .app versions. For a further exploration, see the `somax2.overview.maxpat' patch.
+
+
+
+\section{Server}
+
+The Somax Server is an external Python application through which all `somax.player' objects communicate. The `somax.server' Max object manages all the communication with the remote server using the OSC protocol, so in order to use a `somax.player', it's always necessary to first initialize the `somax.server' object. The server is also responsible for managing and synchronize time between the players. 
+
+So when a `somax.server' object is created in a Max patch, the usual workflow for it consists on the following step:
+
+\begin{itemize}
+    \item initialize the server: by default, the `somax.server' will automatically be initailized when created. However, if this has been created with the attribute `@autoinitialize 0' you need to send it the message `initialize';
+    \item initialize the players: to initialize all the local `somax.player' objects, send to the server the message `initializeplayers';
+    \item activate the server's transport: to start the generation for all the players, use a `toggle' to start or stop the player's transport.
+\end{itemize}
+
+See the `somax.server.maxhelp' shown in Figure \ref{fig:server_help} for a detailed description of it.
+
+ \begin{figure}[H]
+    \centering        
+ 	\includegraphics[width=1\textwidth, keepaspectratio]{img/server_help.png}
+    \caption{Help patch for `somax.server.maxhelp' available in the /help folder and from the help center of the `somax2.overview.maxpat'.}
+    \label{fig:server_help}
+\end{figure}
+
+
+\subsection{Server App}
+
+The `somax.server.app' object is a wrapper that handles the communication with the remote Python server, where all the players are stored. The server also handles the scheduling of events and all aspects of timing and tempo, as well as the construction of new corpora through the Corpus Builders module.
+See the `somax.server.app.maxhelp' for a detailed description of it.
+
+ \begin{figure}[H]
+    \centering        
+ 	\includegraphics[width=0.3\textwidth, keepaspectratio]{img/server_app.png}
+    \caption{User interface of the `somax.server.app' with controls for all the parameters, as well as the Corpus Builders modules.}
+    \label{fig:server_app}
+\end{figure}
+
+\section{Player}
+
+The `somax.player' is the main generative object in the Somax package. The player reads a corpus (constructed through a corpus builder) and generates MIDI or audio content by playing segments (events) from the corpus in a non-linear manner. The main way of interacting with the player is by sending influence messages from a `somax.midiinfluencer' and/or a `somax.audioinfluencer'. These serve as the harmonic and melodic context which the player is trying to match. 
+
+The player exists in three different kind of objects, each one targeting a particular use case:
+
+\begin{itemize}
+    \item somax.player: this is the core Max object. To use it, you have to patch an influencer to its inlet, and connect its outlet to an audio or MIDI renderer, as the player itself does not output audio or MIDI, but data;
+    \item somax.player.ui: this acts exactly the same as the somax.player, but gives you a user interface to control its parameters;
+    \item somax.player.app: this is the application module of the player. It has at its core the basic somax.player object, but in addition to the user interface (same as the somax.player.ui) it provides modules for selecting influences, feedback of the matches and audio or MIDI playback. This is a ready-to-play object, that you can use in any patch in a complete wireless way (the routing of every signal in the .app objects doesn't need any patch chords).
+\end{itemize}
+
+See the `somax.player.maxhelp' shown in Figure \ref{fig:player_help} for a detailed description of it.
+
+\begin{figure}[H]
+    \centering        
+ 	\includegraphics[width=1\textwidth, keepaspectratio]{img/player_help.png}
+    \caption{Help patch for `somax.player.maxhelp' available in the /help folder and from the help center of the `somax2.overview.maxpat'.}
+    \label{fig:player_help}
+\end{figure}
+
+\subsection{Player App}
+
+The `somax.player.app' is a wrapper around the somax.player, encapsulating it together with other useful tools for routing influences, rendering and playing back audio or MIDI output. The somax.player.app has a graphic interface to control all its parameters and provide the user with better interaction. Thanks to this app object, Somax can send influences between influencers and players wirelessly (i.e., without Max patch cords). See the `somax.player.app.maxhelp' for a detailed description of it.
+
+ \begin{figure}[H]
+    \centering        
+ 	\includegraphics[width=0.29\textwidth, keepaspectratio]{img/player_app_audio_2-7.png}
+    \caption{The `somax.player.app' object. Note that this provides modules for routing the influences, real-time recording of audio corpora, controls on the player's parameters (which is what is shown in the `somax.player.ui'), region filter and modules for outgoing influences and output audio or MIDI controls.}
+    \label{fig:player_app}
+\end{figure}
+
+Note that the `somax.player.app' is actually composed by multiple modules, as shown in Figure \ref{fig:player_app}:
+
+\begin{itemize}
+    \item Influence Sources: module used to select which influence the player should listen to (within the audio influencer, MIDI influencer or any other player located in the patch). From here you can also select which kind of influence (onset, pitch, chroma) each influencer will send to the player;
+    \item Corpus Recording: audio corpora can also be recorded in real-time. This is done thanks to the somax.audiorecord module, available as a core object and embedded in the somax.player.app;
+    \item Player Controls: this corresponds to the `somax.player.ui' object and it's the module where you can control the main parameters of the player for the intended interaction. Note that by pressing on the «Settings» button, a new window with the complete set of parameters pops up, as showed in Figure \ref{fig:player_settings};
+    \item Region Filter and Number of matches: this module gives a visual feedback on the last played state index of the corpus, as well as the number of matches on any layer. It's also possible to enable a multi-region filter (somax.regions) to select specific areas of the corpus to be played;
+    \item Outgoing influences: this module is actually an Influencer, as it will be described in the following paragraph. It's useful to monitor the data that the player is outputting, in terms of onset, pitch and chroma;
+    \item Output Control: in the case of an audio player, as in Figure \ref{fig:player_app}, you can select on which audio channels the player should playback its audio, as well as controlling its pan, gain, attack, release, and other settings available by clicking on the dedicated button. The same applies for a MIDI player, where you can select the MIDI output device, port and channel.
+\end{itemize}
+
+ \begin{figure}[H]
+    \centering        
+ 	\includegraphics[width=0.8\textwidth, keepaspectratio]{img/playerui_2-7.png}
+    \caption{Clicking on the «Settings» button of the`somax.player.app' object will open this window with access to all the available player's parameters.}
+    \label{fig:player_settings}
+\end{figure}
+
+\clearpage
+
+\section{Influencers}
+
+The scope of the influencers is to analyze and segment audio or MIDI into discrete labels (onset, pitch and chroma) in real-time, for them to be sent to any Somax player.
+
+The audio influencer segments and analyzes an incoming audio signal with respect to pitch, chroma and onset into discrete labels, which then can be used to influence a `somax.player' in order to control the player's way of navigating through the corpus.
+
+Similarly, the MIDI influencer analyzes incoming MIDI data with respect to pitch, chroma and onset into discrete labels, which then can be used to influence a `somax.player' in the same way. 
+
+\begin{figure}[H]
+  \centering
+  \subfloat[somax.audioinfluencer]{\includegraphics[width=0.45\textwidth]{img/audioinfluencer_help.png}\label{fig:f1}}
+  \hfill
+  \subfloat[somax.midiinfluencer]{\includegraphics[width=0.45\textwidth]{img/midiinfluencer_help.png}\label{fig:f2}}
+  \caption{Relation between the influencers and the somax.player. Note that it's needed to prepend the word `influence' to any data output from them, before sending this data to the player.}
+\end{figure}
+
+As the player, the influencers exist in three kind of objects, following the same taxonomy:
+
+\begin{itemize}
+    \item somax.audioinfluencer or somax.midiinfluencer: this is the core Max object. To adjust the parameters, you can send to it a wide set of messages (see `somax.audioinfluencer.maxhelp' and `somax.midiinfluencer.maxhelp' for a detailed description of these). You can connect the first outlet of this object to the inlet of a `somax.player' after prepending the word `influence' to it. You can also select which kind of influence you want, using a Max `route' object;
+    \item somax.audioinfluencer.ui or somax.midiinfluencer.ui: this acts exactly the same as the core influencer object, but gives you a visual feedback on the current analyzed data in terms of onset, pitch, chroma and MFCC (see Figure \ref{fig:influencer_ui}) and gives you access to all its parameters by clicking on the «Settings» button;
+    \item somax.audioinfluencer.app or somax.midiinfluencer.app: this is the application module of the influencer. It has at its core the basic influencer object, but in addition to the user interface (same as the ui object) it provides modules for listening to the audio or MIDI outputs, as well as wirelles routing of the influences to any player. The application modules are infact visible in the Influence Sources module of the `somax.player.app' (the top module, as described before and shown in Figure \ref{fig:player_app}).
+\end{itemize}
+
+
+ \begin{figure}[H]
+    \centering        
+ 	\includegraphics[width=0.5\textwidth, keepaspectratio]{img/influencer_ui.png}
+    \caption{Compact interface of a `somax.audioinfluencer.ui' or `somax.midiinfluencer.ui' object, showing the analyzed onset, pitch and chroma values.}
+    \label{fig:influencer_ui}
+\end{figure}
+
+
+\subsection{Audio Influencer App}
+
+The `somax.audioinfluencer.app' object is a convenient wrapper around the audio influencer with some additional user interface to handle input and output. Thanks to this app object, Somax can send influences between influencers and players wirelessly (i.e. without max patch cords). 
+See the `somax.audioinfluencer.app.maxhelp' for a detailed description of it. 
+
+To fine-tune all the available parameters for audio segmentation, you can press the «Settings» button available on the user interface of the `somax.audioinfluencer.app' (as shown in Figure \ref{fig:audioinfluencer_app}). This will open a new window, as shown in Figure \ref{fig:audioinfluencer_settings} where you can control each parameter, as well as selecting the method for onset detection. You will also have a visual feedback on the analyzed onset, pitch, chroma and MFCC.
+
+
+ \begin{figure}[H]
+    \centering        
+ 	\includegraphics[width=0.5\textwidth, keepaspectratio]{img/audioinfluencer_app.png}
+    \caption{The `somax.audioinfluencer.app' provides modules for selecting the audio input source, as well as playback and routing of audio output and MIDI output. The user can select the audio input from any channel of the computer soundcard, and route the stereo output of the audio influencer to any output channel, as well as controlling pan and delay values for latency compensation.}
+    \label{fig:audioinfluencer_app}
+\end{figure}
+
+
+ \begin{figure}[H]
+    \centering        
+ 	\includegraphics[width=0.7\textwidth, keepaspectratio]{img/audioinfluencer_settings.png}
+    \caption{Clicking on the «Settings» button of the `somax.audioinfluencer.app' and `somax.audioinfluencer.ui' objects will open this window with access to all the available parameters for audio analysis.}
+    \label{fig:audioinfluencer_settings}
+\end{figure}
+
+\subsection{MIDI Influencer App}
+
+Like the audio one, the `somax.midiinfluencer.app' object is a convenient wrapper around the MIDI influencer with some additional user interface to handle input and output. Thanks to this app object, Somax can send influences between influencers and players wirelessly (i.e., without Max patch cords). 
+See the `somax.midiinfluencer.app.maxhelp' for a detailed description of it. 
+
+To fine-tune all the available parameters for MIDI segmentation, you can press the  «Settings» button available on the user interface of the `somax.midiinfluencer.app' (as shown in Figure \ref{fig:midiinfluencer_app}). This will open a new window, as shown in Figure \ref{fig:midiinfluencer_settings} where you can control each parameter, as well as selecting the method for pitch analysis. You will also have a visual feedback on the analyzed onset, pitch and chroma.
+
+
+
+\begin{figure}[H]
+    \centering        
+ 	\includegraphics[width=0.5\textwidth, keepaspectratio]{img/midiinfluencer_app.png}
+    \caption{The `somax.midiinfluencer.app' provides modules for selecting the MIDI input source, as well as playback and routing of MIDI output. The input can be a MIDI file or any MIDI channel, while the output can be sent to the standard Max MIDI device or sent to any external application, using the desired MIDI channel.}
+    \label{fig:midiinfluencer_app}
+\end{figure}
+
+
+
+ \begin{figure}[H]
+    \centering        
+ 	\includegraphics[width=0.7\textwidth, keepaspectratio]{img/midiinfluencer_settings.png}
+    \caption{Clicking on the «Settings» button of the `somax.midiinfluencer.app' and `somax.midiinfluencer.ui' objects will open this window with access to all the available parameters for MIDI analysis.}
+    \label{fig:midiinfluencer_settings}
+\end{figure}
+
+\section {Corpus Builders}
+
+\subsection{Audio Corpus Builder}
+
+The `somax.audiocorpusbuilder' is used to construct a corpus from an audio file. `A somax.player' cannot read an audio file directly, it requires the audio to be analyzed and segmented before being able to parse it. The `somax.audiocorpusbuilder' does exactly that — it segments the audio file and analyzes it with regards to a number of descriptors and exports the result as a separate file, that then can be loaded into a `somax.player'.
+
+As opposed to the objects seen so far, the audio corpus builder has only one kind of object: the core one. However, building a corpus implies tuning quite a lot of parameters. Especially for audio material, having a visual feedback of where the onsets are exactly located in the analyzed file, and how long are the resulting slices going to be, is extremely important in order to build a nice corpus. For this reason a user interface with full access to all the parameters of the segmentation, as well as visual feedback on the sliced sound file, is available by double clicking on the `somax.audiocorpusbuilder' or by sending to it the message `openwindow'. This interface is shown in Figure \ref{fig:audiocorpusbuilder}.
+
+\begin{figure}[H]
+    \centering        
+ 	\includegraphics[width=1\textwidth, keepaspectratio]{img/audiocorpusbuilder_help.png}
+    \caption{Help patch for `somax.audiocorpusbuilder.maxhelp' available in the /help folder and from the help center of the `somax2.overview.maxpat'.}
+    \label{fig:audiocorpusbuilder_help}
+\end{figure}
+
+ \begin{figure}[H]
+    \centering        
+ 	\includegraphics[width=0.5\textwidth, keepaspectratio]{img/audiocorpusbuilder.png}
+    \caption{The `somax.audiocorpusbuilder' provides a wide set of parameters for segmenting audio corpus, as well as module to visualize and listen to the segmentation before actually building the corpus.}
+    \label{fig:audiocorpusbuilder}
+\end{figure}
+
+For a more detailed description of it, see the `somax.audiocorpusbuilder.maxhelp' or the audio corpus builder tabs in the `somax.server.app.maxhelp'.
+
+For an actual usage in context of it, see the `app2 - Audio Corpus Builder.maxpat' App Tutorial or the `max3 - Building a Corpus.maxpat' Max Tutorial.
+
+\subsection{Manual Corpus Builder}
+
+Inside the somax.audiocorpusbuilder you can find the manual corpus builder module. This module allows for manual segmentation of an audio corpus. It is also possible to add custom multiple labels to the segment associated to this manual segmentation. These labels can then be used in the environment to filter or add their content as new atoms attached to a somax.player, thanks to the somax.filter or the somax.atom objects.
+
+\begin{figure}[H]
+    \centering        
+ 	\includegraphics[width=0.7\textwidth, keepaspectratio]{img/manual_corpus_builder.png}
+    \caption{The manual corpus builder allows a manual segmenting of an audio corpus, as well as annotation for multiple labels retrieved from txt files exported from Audacity of Reaper.}
+    \label{fig:manualcorpusbuilder}
+\end{figure}
+
+See the `app5 - Using Custom Labels.maxpat' App Tutorial for a complete workflow of how to use to manual corpus builder with custom labels.
+
+\subsection{MIDI Corpus Builder}
+
+Similarly to the audio one, the `somax.midicorpusbuilder' is used to construct a corpus from one (or multiple) MIDI file(s). A `somax.player' cannot read a MIDI file directly, it requires the MIDI to be analyzed before being able to parse it. The `somax.midicorpusbuilder' does exactly that — it segments the MIDI file and analyzes it with regards to a number of descriptors and exports the result as a separate file, that then can be loaded into a `somax.player'.
+
+Just like its audio counterpart, the MIDI corpus builder has only one kind of object: the core one. But for the same reasons, a user interface with full access to all the parameters of the segmentation is available by double clicking on the `somax.midicorpusbuilder' or by sending to it the message `openwindow'. This interface is shown in Figure \ref{fig:midicorpusbuilder}. Of course here you won't have a representation of the waveform, since you are dealing now with MIDI data. However, the MIDI corpus builder gives you access to a selection of the different descriptors for pitch and chroma to different MIDI channels. In this way it's possible to build a corpus from multiple MIDI files, as well as selecting the melody (pitch) and the harmony (chroma) from different MIDI channels, potentially associated to different MIDI files.
+
+\begin{figure}[H]
+    \centering        
+ 	\includegraphics[width=1\textwidth, keepaspectratio]{img/midicorpusbuilder_help.png}
+    \caption{Help patch for `somax.midicorpusbuilder.maxhelp' available in the /help folder and from the help center of the `somax2.overview.maxpat'.}
+    \label{fig:midicorpusbuilder_help}
+\end{figure}
+
+ \begin{figure}[H]
+    \centering        
+ 	\includegraphics[width=0.5\textwidth, keepaspectratio]{img/midicorpusbuilder.png}
+    \caption{The `somax.midicorpusbuilder' has parameters to specify the melodic (pitch) and harmonic (chroma) dimensions when building the MIDI corpus.}
+    \label{fig:midicorpusbuilder}
+\end{figure}
+
+For a more detailed description of it, see the `somax.midicorpusbuilder.maxhelp' or the midi corpus builder tab in the `somax.server.app.maxhelp'.
+
+For an actual usage in context of it, see the `max3 - Building a Corpus.maxpat' Max Tutorial.
+
+
+\section{Audio Record}
+
+Audio corpora can now be recorded in real-time from a live stream of incoming audio.
+This can be done thanks to a dedicated module, called somax.audiorecord.
+This module is available both as a core abstraction, or as a module with an user interface.
+More info are provided in the `somax.audiorecord.maxhelp', in the `corpus recording' tab of the `somax.player.app.maxhelp' as well as in the Max Tutorial `8 - Real Time Corpus Recording'. 
+
+\subsection{somax.audiorecord}
+
+The somax.audiorecord is used to build a corpus from an audio source in real-time. It takes as inputs an audio stream and a segmentation analysis derived from a somax.audioinfluencer and sends a specific message to the somax.player to learn the events and build a corpus from them.
+
+See the different tabs of the `somax.audiorecord.maxhelp' for more infor about its initialization, how to provide custom labelling or how to use the ui version of this module.
+
+\begin{figure}[H]
+    \centering        
+ 	\includegraphics[width=1\textwidth, keepaspectratio]{img/audiorecord_help.png}
+    \caption{Help patch for `somax.audiorecord.maxhelp' available in the /help folder and from the help center of the `somax2.overview.maxpat'.}
+    \label{fig:audiorecord_help}
+\end{figure}
+
+
+
+\subsection{somax.audiorecord.ui}
+
+The somax.audiorecord.ui is a wrapper around the core object, with a dedicated user interface and automatic handling of app modules. Every somax.audioinfluencer.app in your environment and every input channel is directly available and could be selected via the menu. You can use this ui object also in hybrid configuration, connecting it to core Somax objects, thanks to its inlets for influences and audio signal (when set to <None>).
+
+\begin{figure}[H]
+    \centering        
+ 	\includegraphics[width=0.5\textwidth]{img/audiorecord_compact.png}
+    \caption{The `somax.audiorecord.ui' comes with a compact user interface for immediate control of the recording. This interface includes most of the settings available in the complete window.}
+    \label{fig:audiorecord_ui}
+\end{figure}
+
+Pressing on the Settings button of the `somax.audiorecord.ui' will open up its full window, where you can control all its parameters, as shown in Figure \ref{fig:audiorecord_window}
+
+\begin{figure}[H]
+    \centering        
+ 	\includegraphics[width=0.6\textwidth]{img/audiorecord_window.png}
+    \caption{Settings window of the `somax.audiorecord.ui'.}
+    \label{fig:audiorecord_window}
+\end{figure}
+
+As previously shown, the somax.player.app is capable of recording in real-time a live stream of incoming audio and create a corpus directly from it.
+This is done via the somax.audiorecord.ui module, embedded in the somax.player.app thanks to a dedicated user interface and specific settings controllable from it, as well as from a more detailed settings window. The module is available in the upper part of the somax.player.app, just after the Influence Sources one.
+
+For a complete overview of all the somax.audiorecord.ui parameters, see the `corpus recording' tab of the `somax.player.app.maxhelp'. See also the `UI' tab of the `somax.audiorecord.maxhelp' to learn how to connect this module with non-app modules.
+
+\begin{figure}[H]
+    \centering        
+ 	\includegraphics[width=1\textwidth, keepaspectratio]{img/audiorecord_ui_help.png}
+    \caption{Help patch for `somax.audiorecord.maxhelp' available in the /help folder and from the help center of the `somax2.overview.maxpat'.}
+    \label{fig:audiorecord_ui_help}
+\end{figure}
+
+
+
+\section{Regions}
+
+Any audio or MIDI corpus can now be edited into 6 different regions, to control different areas (NB: MIDI corpora won't display their audio waveform, but the regions will still be working). These regions can be edited, enabled and reset dynamically thanks to a specific module, provided with a detailed user interface.
+
+The somax.regions module should be connected in a loop with the somax.player and is used to monitor the playback and to dynamically interact with the corpus to guide the generation of the next event. 
+
+This module is also embedded in the somax.player.app for an immediate usage with application modules.
+
+
+
+\begin{figure}[H]
+    \centering        
+ 	\includegraphics[width=0.3\textwidth, trim=0 0 0 5, clip, keepaspectratio]{img/player_compact_regions.png}
+    \caption{The `somax.regions' module enabled and embedded in the `somax.player.app'.}
+    \label{fig:player_regions}
+\end{figure}
+
+Regions can be edited, enabled, disabled and resized according to your needs, providing precise and dynamic selection of different sections of the corpus, and offering tools to structure your interaction. 
+While using the module with its user interface is probably the easiest solution, you can retrieve information from it and design your own interface, as shown in the `somax.regions.maxhelp'.
+
+\begin{figure}[H]
+    \centering        
+ 	\includegraphics[width=0.9\textwidth, keepaspectratio]{img/regions_help.png}
+    \caption{Help patch for `somax.regions.maxhelp' available in the /help folder and from the help center of the `somax2.overview.maxpat'.}
+    \label{fig:regions_help}
+\end{figure}
+
+
+\section{Filter}
+The somax.filter object allows filtering of segments (events) within a corpus that has been loaded into a somax.player. Filtering is based on descriptors and labels, allowing fine-grained selection of custom material.
+See the `somax.filter.maxhelp' for a complete documentation and usage of this module.
+
+\begin{figure}[H]
+    \centering        
+ 	\includegraphics[width=1\textwidth, keepaspectratio]{img/filter_help.png}
+    \caption{Help patch for `somax.filter.maxhelp' available in the /help folder and from the help center of the `somax2.overview.maxpat'.}
+    \label{fig:filter_help}
+\end{figure}
+
+\section{Atom}
+
+The somax.atom object manages an elementary unit (atom) within a corpus, representing a specific feature (e.g., pitch, chroma, MFCC) or a user-defined custom label. When linked to a somax.player, the somax.atom decodes incoming data into influences corresponding to the selected feature or label, generating matches and peaks within the somax.player. Additional parameters, such as ngram order, weights, and decay time, provide further control over its behavior.
+See the `somax.atom.maxhelp' for a complete documentation and usage of this module.
+
+\begin{figure}[H]
+    \centering        
+ 	\includegraphics[width=1\textwidth, keepaspectratio]{img/atom_help.png}
+    \caption{Help patch for `somax.atom.maxhelp' available in the /help folder and from the help center of the `somax2.overview.maxpat'.}
+    \label{fig:atom_help}
+\end{figure}
+
+\subsubsection{Atom App}
+
+The somax.atom.app object is a convenient wrapper around the somax.atom with some additional user interface to handle connection to players and parameters controls. Thanks to this app object, Somax players can receive influences associated to the selected atom wirelessly (i.e. without max patch chords).
+
+\begin{figure}[H]
+    \centering        
+ 	\includegraphics[width=0.35\textwidth, keepaspectratio]{img/atom_app.png}
+    \caption{The `somax.atom.app' module with its different menus to select the attached Player and Descirptor, as well as controls for Weights, Memory Length and monitor of Matches}
+    \label{fig:atom_app}
+\end{figure}
+
+See the `somax.atom.app.maxhelp' for a complete documentation and usage of this module. 
+
+\begin{figure}[H]
+    \centering        
+ 	\includegraphics[width=1\textwidth, keepaspectratio]{img/atom_app_help.png}
+    \caption{Help patch for `somax.atom.app.maxhelp' available in the /help folder and from the help center of the `somax2.overview.maxpat'.}
+    \label{fig:atom_app_help}
+\end{figure}
+
+
+\section{Recap}
+
+Now that each Somax2 application object has been presented, it should be easier for you to locate them in the default `somax2.maxpat' shown in Figure \ref{fig:somax2_ui}. 
+Thus, we can be even more precise in classifying the objects contained in this patch, as it should be now clear that all of those are .app objects, communicating in a wireless way with each other:
+
+\begin{itemize}
+    \item somax.server.app;
+    \item somax.player.app;
+    \item somax.audioinfluencer.app;
+    \item somax.midiinfluencer.app.
+\end{itemize}
+
+\noindent As previously mentioned, this is just one possible configuration that will give you immediate interaction. We encourage you to use the `somax2.overview.maxpat` to explore all the suggested configurations and resources, notably the different template patches located in the /templates folder. Use these as a sort of test bench, to try out all the different means of interaction and explore the parameters. Once you will be confident with the objects, you could then create your own patches and achieve new ways of configurations and interaction.
+Remember to rely on the `somax2.overview.maxpat' to redirect you wherever you need, and to explore all the App and Max Tutorials contained there, as well as studying the help files available from the Help Center, and the Performance Strategies.
+
+\begin{figure}[H]
+    \centering        
+ 	\includegraphics[width=0.8\textwidth]{img/somax2-7.png}
+    \caption{The `somax2.maxpat' included in the distribution gives you quick access to all the objects in the Somax2 application: server, player, audio influencer and MIDI influencer.}
+    \label{fig:somax2_ui}
+\end{figure}
+
